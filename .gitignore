@@ -1,0 +1,36 @@
+# Variables de entorno y secretos
+.env
+*.env
+*.env.*
+!*.env.example
+
+# Binarios y compilados del proyecto
+build/
+bin/
+dashboard
+dashboard.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Archivos de prueba y profiling de Go
+*.test
+*.out
+*.prof
+
+# Archivos de empaquetado / despliegue temporal
+ui.zip
+*.zip
+*.tar.gz
+
+# Editores y entornos de desarrollo (IDE)
+.vscode/
+.idea/
+*.swp
+*~
+
+# Sistema Operativo
+.DS_Store
+Thumbs.db
