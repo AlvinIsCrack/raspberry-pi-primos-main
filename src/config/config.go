@@ -7,24 +7,26 @@ import (
 )
 
 const (
-	DefaultTimezone = "America/Santiago"
-	DefaultHTTPAddr = ":8080"
-	DefaultMQTTAddr = ":1883"
+	DefaultTimezone   = "America/Santiago"
+	DefaultHTTPAddr   = ":8080"
+	DefaultMQTTAddr   = ":1883"
+	DefaultGithubUser = "AlvinIsCrack"
+	DefaultGithubRepo = "raspberry-pi-primos-main"
 )
 
 // AppConfig almacena los ajustes globales de la aplicación.
 type AppConfig struct {
-	Timezone string
-	HTTPAddr string
-	MQTTAddr string
-	Location *time.Location
+	Timezone   string
+	HTTPAddr   string
+	MQTTAddr   string
+	Location   *time.Location
+	GithubUser string
+	GithubRepo string
 }
 
 // Load lee las variables de entorno o aplica los valores predeterminados y sincroniza time.Local.
 func Load() (*AppConfig, error) {
 	tz := getEnv("APP_TIMEZONE", DefaultTimezone)
-	httpAddr := getEnv("HTTP_ADDR", DefaultHTTPAddr)
-	mqttAddr := getEnv("MQTT_ADDR", DefaultMQTTAddr)
 
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
@@ -36,10 +38,12 @@ func Load() (*AppConfig, error) {
 	time.Local = loc
 
 	return &AppConfig{
-		Timezone: tz,
-		HTTPAddr: httpAddr,
-		MQTTAddr: mqttAddr,
-		Location: loc,
+		Timezone:   tz,
+		HTTPAddr:   getEnv("HTTP_ADDR", DefaultHTTPAddr),
+		MQTTAddr:   getEnv("MQTT_ADDR", DefaultMQTTAddr),
+		Location:   loc,
+		GithubUser: getEnv("GITHUB_USER", DefaultGithubUser),
+		GithubRepo: getEnv("GITHUB_REPO", DefaultGithubRepo),
 	}, nil
 }
 

@@ -25,10 +25,26 @@ func main() {
 
 	// Dominio / Servicios
 	lockService := services.NewRoomsLockService()
+	updaterService := services.NewUpdaterService(cfg.GithubUser, cfg.GithubRepo)
+
+	// Bubble Tea TUI
+	initialModel := dashboard.NewModel(ui.DefaultTheme, lockService)
+	program := tea.NewProgram(
+		initialModel,
+		tea.WithAltScreen(),
+	)
 
 	// Enrutador centralizado de API
 	apiRouter := api.BuildDefaultRouter(api.AppServices{
 		RoomsLock: lockService,
+		Updater:   updaterService,
+		OnRestart: func() {
+			if program != nil {
+				program.Quit()
+			} else {
+				os.Exit(0)
+			}
+		},
 	})
 
 	// Broker MQTT
@@ -56,13 +72,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "HTTP Server error: %v\n", err)
 		}
 	}()
-
-	// Bubble Tea TUI
-	initialModel := dashboard.NewModel(ui.DefaultTheme, lockService)
-	program := tea.NewProgram(
-		initialModel,
-		tea.WithAltScreen(),
-	)
 
 	if _, err := program.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal runtime error: %v\n", err)
