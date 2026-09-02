@@ -153,14 +153,19 @@ func (s *UpdaterService) CheckAndApply(targetVersion string) (*UpdateResult, err
 	}
 
 	tmpPath := exePath + ".tmp"
+	success := false
+	defer func() {
+		if !success {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
 	if err := s.downloadFile(downloadURL, tmpPath); err != nil {
-		_ = os.Remove(tmpPath)
 		return nil, fmt.Errorf("error descargando binario: %w", err)
 	}
 
 	downloadedHash, errDown := computeSHA256(tmpPath)
 	if errDown != nil {
-		_ = os.Remove(tmpPath)
 		return nil, fmt.Errorf("error calculando checksum del binario descargado: %w", errDown)
 	}
 
@@ -168,15 +173,12 @@ func (s *UpdaterService) CheckAndApply(targetVersion string) (*UpdateResult, err
 	if checksumURL != "" {
 		expectedHash, err := s.fetchExpectedHash(checksumURL, assetName)
 		if err != nil {
-			_ = os.Remove(tmpPath)
 			return nil, fmt.Errorf("error obteniendo checksum del release: %w", err)
 		}
 		if expectedHash == "" {
-			_ = os.Remove(tmpPath)
 			return nil, fmt.Errorf("el archivo de checksums no contiene un hash para %s", assetName)
 		}
 		if !strings.EqualFold(downloadedHash, expectedHash) {
-			_ = os.Remove(tmpPath)
 			return nil, fmt.Errorf("checksum corrupto o no coincide con el release (esperado: %s, obtenido: %s)", expectedHash, downloadedHash)
 		}
 	}
@@ -184,7 +186,6 @@ func (s *UpdaterService) CheckAndApply(targetVersion string) (*UpdateResult, err
 	// Comprobación contra el ejecutable actual para evitar actualizaciones redundantes
 	currentHash, errCur := computeSHA256(exePath)
 	if errCur == nil && strings.EqualFold(currentHash, downloadedHash) {
-		_ = os.Remove(tmpPath)
 		return &UpdateResult{
 			Updated:        false,
 			CurrentVersion: currentVer,
@@ -194,7 +195,6 @@ func (s *UpdaterService) CheckAndApply(targetVersion string) (*UpdateResult, err
 	}
 
 	if err := os.Chmod(tmpPath, 0755); err != nil {
-		_ = os.Remove(tmpPath)
 		return nil, fmt.Errorf("error aplicando permisos de ejecución: %w", err)
 	}
 
@@ -203,18 +203,17 @@ func (s *UpdaterService) CheckAndApply(targetVersion string) (*UpdateResult, err
 	_ = os.Remove(oldPath)
 
 	if err := os.Rename(exePath, oldPath); err != nil {
-		_ = os.Remove(tmpPath)
 		return nil, fmt.Errorf("error al mover ejecutable actual: %w", err)
 	}
 
 	if err := os.Rename(tmpPath, exePath); err != nil {
 		// Rollback
 		_ = os.Rename(oldPath, exePath)
-		_ = os.Remove(tmpPath)
 		return nil, fmt.Errorf("error al aplicar nuevo binario: %w", err)
 	}
 	_ = os.Remove(oldPath)
 
+	success = true
 	return &UpdateResult{
 		Updated:        true,
 		CurrentVersion: currentVer,
