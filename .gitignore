@@ -7,8 +7,6 @@
 # Binarios y compilados del proyecto
 build/
 bin/
-dashboard
-dashboard.exe
 *.exe
 *.exe~
 *.dll
