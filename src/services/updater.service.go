@@ -1,6 +1,8 @@
 package services
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +17,20 @@ import (
 	"sync"
 	"time"
 )
+
+func computeSHA256(filePath string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
 
 type githubRelease struct {
 	TagName string `json:"tag_name"`
@@ -134,6 +150,28 @@ func (s *UpdaterService) CheckAndApply(targetVersion string) (*UpdateResult, err
 	if err := s.downloadFile(downloadURL, tmpPath); err != nil {
 		_ = os.Remove(tmpPath)
 		return nil, fmt.Errorf("error descargando binario: %w", err)
+	}
+
+	currentHash, errCur := computeSHA256(exePath)
+	if errCur != nil {
+		_ = os.Remove(tmpPath)
+		return nil, fmt.Errorf("error calculando checksum del binario actual: %w", errCur)
+	}
+
+	downloadedHash, errDown := computeSHA256(tmpPath)
+	if errDown != nil {
+		_ = os.Remove(tmpPath)
+		return nil, fmt.Errorf("error calculando checksum del binario descargado: %w", errDown)
+	}
+
+	if currentHash == downloadedHash {
+		_ = os.Remove(tmpPath)
+		return &UpdateResult{
+			Updated:        false,
+			CurrentVersion: currentVer,
+			TargetVersion:  release.TagName,
+			Message:        "El binario descargado es idéntico al actual (checksum coincide)",
+		}, nil
 	}
 
 	if err := os.Chmod(tmpPath, 0755); err != nil {
