@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -124,12 +125,17 @@ func (s *UpdaterService) CheckAndApply(targetVersion string) (*UpdateResult, err
 		}, nil
 	}
 
-	var downloadURL string
+	var downloadURL, assetName, checksumURL string
 	for _, asset := range release.Assets {
+		nameLower := strings.ToLower(asset.Name)
+		if strings.Contains(nameLower, "checksum") || strings.HasSuffix(nameLower, ".sha256") {
+			checksumURL = asset.BrowserDownloadURL
+		}
+
 		parts := strings.Split(strings.TrimSuffix(asset.Name, filepath.Ext(asset.Name)), "_")
 		if len(parts) >= 2 && parts[len(parts)-2] == runtime.GOOS && parts[len(parts)-1] == runtime.GOARCH {
 			downloadURL = asset.BrowserDownloadURL
-			break
+			assetName = asset.Name
 		}
 	}
 
@@ -152,19 +158,32 @@ func (s *UpdaterService) CheckAndApply(targetVersion string) (*UpdateResult, err
 		return nil, fmt.Errorf("error descargando binario: %w", err)
 	}
 
-	currentHash, errCur := computeSHA256(exePath)
-	if errCur != nil {
-		_ = os.Remove(tmpPath)
-		return nil, fmt.Errorf("error calculando checksum del binario actual: %w", errCur)
-	}
-
 	downloadedHash, errDown := computeSHA256(tmpPath)
 	if errDown != nil {
 		_ = os.Remove(tmpPath)
 		return nil, fmt.Errorf("error calculando checksum del binario descargado: %w", errDown)
 	}
 
-	if currentHash == downloadedHash {
+	// Validación contra el archivo de checksums del release (integridad y autenticidad)
+	if checksumURL != "" {
+		expectedHash, err := s.fetchExpectedHash(checksumURL, assetName)
+		if err != nil {
+			_ = os.Remove(tmpPath)
+			return nil, fmt.Errorf("error obteniendo checksum del release: %w", err)
+		}
+		if expectedHash == "" {
+			_ = os.Remove(tmpPath)
+			return nil, fmt.Errorf("el archivo de checksums no contiene un hash para %s", assetName)
+		}
+		if !strings.EqualFold(downloadedHash, expectedHash) {
+			_ = os.Remove(tmpPath)
+			return nil, fmt.Errorf("checksum corrupto o no coincide con el release (esperado: %s, obtenido: %s)", expectedHash, downloadedHash)
+		}
+	}
+
+	// Comprobación contra el ejecutable actual para evitar actualizaciones redundantes
+	currentHash, errCur := computeSHA256(exePath)
+	if errCur == nil && strings.EqualFold(currentHash, downloadedHash) {
 		_ = os.Remove(tmpPath)
 		return &UpdateResult{
 			Updated:        false,
@@ -223,4 +242,41 @@ func (s *UpdaterService) downloadFile(url, destPath string) error {
 
 	_, err = io.Copy(out, resp.Body)
 	return err
+}
+
+func (s *UpdaterService) fetchExpectedHash(checksumURL, targetAssetName string) (string, error) {
+	resp, err := s.client.Get(checksumURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("descarga de checksums falló con status %d", resp.StatusCode)
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		fields := strings.Fields(line)
+		// Formatos comunes sha256sum:
+		// <hash>  <nombre_archivo>
+		// <hash> *<nombre_archivo>
+		if len(fields) >= 2 {
+			fileName := filepath.Base(strings.TrimPrefix(fields[1], "*"))
+			if fileName == targetAssetName {
+				return fields[0], nil
+			}
+		} else if len(fields) == 1 {
+			// Caso en que el asset es un archivo individual solo con el hash
+			u, err := _url.Parse(checksumURL)
+			if err == nil {
+				baseName := filepath.Base(u.Path)
+				if strings.EqualFold(baseName, targetAssetName+".sha256") {
+					return fields[0], nil
+				}
+			}
+		}
+	}
+	return "", scanner.Err()
 }
