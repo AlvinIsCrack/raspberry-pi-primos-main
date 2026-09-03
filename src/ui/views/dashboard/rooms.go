@@ -11,6 +11,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	SensorBatteryIndicatorFilled = "="
+	SensorBatteryIndicatorEmpty  = "-"
+	SensorActivityIndicator      = "*"
+)
+
 // RenderRoomsPanel formatea la lista vertical de salas monitoreadas.
 func (m Model) RenderRoomsPanel() string {
 	snapshots := m.RoomsSnapshots
@@ -39,26 +45,22 @@ func (m Model) RenderRoomsPanel() string {
 		// Indicador de actividad
 		activityIndicator := " "
 		if !snap.LastSeenAt.IsZero() && m.CurrentTime.Sub(snap.LastSeenAt) < time.Second {
-			activityIndicator = lipgloss.NewStyle().Faint(true).Render("*")
+			activityIndicator = lipgloss.NewStyle().Faint(true).Render(SensorActivityIndicator)
 		}
 
 		// Batería
 		battery := "   "
 		if snap.BatteryLevel >= 15 {
-			c1 := m.Theme.Error
-			c2 := m.Theme.Muted
-			c3 := m.Theme.Muted
-
-			if snap.BatteryLevel > 33 {
-				c2 = m.Theme.Secondary
-			}
-			if snap.BatteryLevel > 66 {
-				c3 = m.Theme.Primary
+			renderSegment := func(filled bool, activeColor lipgloss.TerminalColor) string {
+				if filled {
+					return lipgloss.NewStyle().Foreground(activeColor).Render(SensorBatteryIndicatorFilled)
+				}
+				return lipgloss.NewStyle().Foreground(m.Theme.Muted).Render(SensorBatteryIndicatorEmpty)
 			}
 
-			p1 := lipgloss.NewStyle().Foreground(c1).Render("|")
-			p2 := lipgloss.NewStyle().Foreground(c2).Render("|")
-			p3 := lipgloss.NewStyle().Foreground(c3).Render("|")
+			p1 := renderSegment(true, m.Theme.Error)
+			p2 := renderSegment(snap.BatteryLevel > 33, m.Theme.Secondary)
+			p3 := renderSegment(snap.BatteryLevel > 66, m.Theme.Primary)
 
 			battery = fmt.Sprintf("%s%s%s", p1, p2, p3)
 		} else if snap.BatteryLevel >= 0 {
