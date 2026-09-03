@@ -41,7 +41,7 @@ func (c *RoomsController) handleDoorMessage(topic string, rawPayload []byte) {
 
 	payloadStr := strings.TrimSpace(string(rawPayload))
 
-	// 1. Manejo por sub-tópico específico: sensores/puertas/{id}/...
+	// Manejo por sub-tópico específico: sensores/puertas/{id}/...
 	if len(parts) >= 4 {
 		subTopic := strings.ToLower(parts[3])
 		switch subTopic {
@@ -66,7 +66,7 @@ func (c *RoomsController) handleDoorMessage(topic string, rawPayload []byte) {
 		return
 	}
 
-	// 2. Manejo en tópico base: sensores/puertas/{id}
+	// Manejo en tópico base: sensores/puertas/{id}
 	// Intento A: JSON estructurado
 	var payload domain.TelemetryPayload
 	if err := json.Unmarshal(rawPayload, &payload); err == nil {
@@ -74,12 +74,22 @@ func (c *RoomsController) handleDoorMessage(topic string, rawPayload []byte) {
 		return
 	}
 
-	// Intento B: Payload de texto plano ultra-ligero ("ABR", "CER", "N/A")
+	// Intento B: Payload de texto plano
 	upperText := strings.ToUpper(payloadStr)
-	switch domain.DoorState(upperText) {
-	case domain.DoorOpen, domain.DoorClosed, domain.DoorUnknown:
+
+	var doorState domain.DoorState
+	switch upperText {
+	case string(domain.DoorOpen), "1", "TRUE", "OPEN", "ABIERTO", "ABIERTA":
+		doorState = domain.DoorOpen
+	case string(domain.DoorClosed), "0", "FALSE", "CLOSED", "CERRADO", "CERRADA":
+		doorState = domain.DoorClosed
+	case string(domain.DoorUnknown), "?", "NA", "UNKNOWN":
+		doorState = domain.DoorUnknown
+	}
+
+	if doorState != "" {
 		_ = c.lockService.ProcessTelemetry(roomID, domain.TelemetryPayload{
-			Door: domain.DoorState(upperText),
+			Door: doorState,
 		}, "mqtt_raw_state")
 	}
 }
