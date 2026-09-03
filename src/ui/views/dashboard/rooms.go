@@ -65,16 +65,19 @@ func (m Model) RenderRoomsPanel() string {
 		// Batería
 		battery := "   "
 		if snap.BatteryLevel >= 15 {
-			renderSegment := func(filled bool, activeColor lipgloss.TerminalColor) string {
+			baseFilled := lipgloss.NewStyle().SetString(SensorBatteryIndicatorFilled)
+			baseEmpty := lipgloss.NewStyle().Foreground(m.Theme.Muted).SetString(SensorBatteryIndicatorEmpty).Render()
+
+			renderSegment := func(filled bool, color lipgloss.TerminalColor) string {
 				if filled {
-					return lipgloss.NewStyle().Foreground(activeColor).Render(SensorBatteryIndicatorFilled)
+					return baseFilled.Foreground(color).Render()
 				}
-				return lipgloss.NewStyle().Foreground(m.Theme.Muted).Render(SensorBatteryIndicatorEmpty)
+				return baseEmpty
 			}
 
 			p1 := renderSegment(true, m.Theme.Error)
-			p2 := renderSegment(snap.BatteryLevel > 33, m.Theme.Secondary)
-			p3 := renderSegment(snap.BatteryLevel > 66, m.Theme.Primary)
+			p2 := renderSegment(snap.BatteryLevel > 33, m.Theme.Warning)
+			p3 := renderSegment(snap.BatteryLevel > 66, m.Theme.Success)
 
 			battery = fmt.Sprintf("%s%s%s", p1, p2, p3)
 		} else if snap.BatteryLevel >= 0 {
