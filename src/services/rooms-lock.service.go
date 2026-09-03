@@ -58,7 +58,6 @@ func ResetTelemetry() domain.TelemetryReport {
 	}
 }
 
-// ReportTelemetry procesa una ráfaga periódica de datos del sensor.
 func (s *RoomsLockService) ProcessTelemetry(roomID string, payload domain.TelemetryPayload, defaultShutdownReason string) error {
 	if len(roomID) != 3 {
 		return errors.New("el ID del cuarto debe tener exactamente 3 caracteres")
@@ -85,6 +84,7 @@ func (s *RoomsLockService) ProcessTelemetry(roomID string, payload domain.Teleme
 	})
 }
 
+// ReportTelemetry procesa una ráfaga periódica de datos del sensor.
 func (s *RoomsLockService) ReportTelemetry(roomID string, report domain.TelemetryReport) error {
 	if len(roomID) != 3 {
 		return errors.New("el ID del cuarto debe tener exactamente 3 caracteres")
