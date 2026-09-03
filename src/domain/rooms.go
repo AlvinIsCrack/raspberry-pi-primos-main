@@ -14,6 +14,17 @@ const (
 	DoorClosed  DoorState = "CER"
 )
 
+func (d DoorState) String() string {
+	switch d {
+	case DoorOpen:
+		return " O "
+	case DoorClosed:
+		return " X "
+	default:
+		return "N/A"
+	}
+}
+
 func (d DoorState) IsValid() bool {
 	switch d {
 	case DoorUnknown, DoorOpen, DoorClosed:

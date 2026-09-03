@@ -3,7 +3,6 @@ package dashboard
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"primos/domain"
 	"primos/ui/helpers"
@@ -12,9 +11,10 @@ import (
 )
 
 const (
-	SensorBatteryIndicatorFilled = "="
-	SensorBatteryIndicatorEmpty  = "-"
-	SensorActivityIndicator      = "*"
+	SensorBatteryIndicatorFilled  = "="
+	SensorBatteryIndicatorEmpty   = "-"
+	SensorActivityIndicator       = "'"
+	LastSeenActionDurationSeconds = 10
 )
 
 // RenderRoomsPanel formatea la lista vertical de salas monitoreadas.
@@ -44,8 +44,22 @@ func (m Model) RenderRoomsPanel() string {
 
 		// Indicador de actividad
 		activityIndicator := " "
-		if !snap.LastSeenAt.IsZero() && m.CurrentTime.Sub(snap.LastSeenAt) < time.Second {
-			activityIndicator = lipgloss.NewStyle().Faint(true).Render(SensorActivityIndicator)
+		if !snap.LastSeenAt.IsZero() {
+			elapsed := m.CurrentTime.Sub(snap.LastSeenAt).Seconds()
+			if elapsed >= 0 && elapsed < LastSeenActionDurationSeconds {
+				color := m.Theme.Primary
+				if elapsed > 1 {
+					t := elapsed / LastSeenActionDurationSeconds // 0.0 (reciente) a 1.0 (límite)
+					r := int(255 - t*(255-74))
+					g := int(255 - t*(255-74))
+					b := int(255 - t*(255-74))
+					color = lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", r, g, b))
+				}
+
+				activityIndicator = lipgloss.NewStyle().
+					Foreground(color).
+					Render(SensorActivityIndicator)
+			}
 		}
 
 		// Batería
@@ -67,7 +81,7 @@ func (m Model) RenderRoomsPanel() string {
 			battery = lipgloss.NewStyle().Foreground(m.Theme.Critical).Faint(!isEven).Render("LOW")
 		}
 
-		lines = append(lines, fmt.Sprintf("%s %s%s %s", battery, snap.RoomID, activityIndicator, style.Render(string(snap.Door))))
+		lines = append(lines, fmt.Sprintf("%s %s%s %s", battery, snap.RoomID, activityIndicator, style.Render(snap.Door.String())))
 	}
 
 	content := strings.Join(lines, "\n")
