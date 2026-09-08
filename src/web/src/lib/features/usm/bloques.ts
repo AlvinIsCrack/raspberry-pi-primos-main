@@ -88,21 +88,19 @@ export function getCurrentAcademicSchedule(date: Date = new Date()): CurrentSche
         const end = block.endHour * 60 + block.endMin;
 
         // En clase / periodo lectivo (inclusive ambos extremos según la lógica original)
-        if (isWithinMinutesRange(current, start, end, { inclusiveStart: true, inclusiveEnd: true })) {
+        if (isWithinMinutesRange(current, start, end, { inclusiveStart: true, inclusiveEnd: false })) {
             const midpoint = start + BLOCK_DURATION_MINUTES;
-            const activeSubBlock: 1 | 2 = current >= midpoint ? 2 : 1;
-
             return {
                 kind: PeriodKind.Lecture,
                 block,
-                activeSubBlock
+                activeSubBlock: current >= midpoint ? 2 : 1
             };
         }
 
         // En ventana de descanso (intermisión entre bloques)
         if (i < STANDARD_BLOCKS.length - 1) {
             const nextStart = STANDARD_BLOCKS[i + 1].startHour * 60 + STANDARD_BLOCKS[i + 1].startMin;
-            if (isWithinMinutesRange(current, end, nextStart, { inclusiveStart: false, inclusiveEnd: false })) {
+            if (isWithinMinutesRange(current, end, nextStart, { inclusiveStart: true, inclusiveEnd: false })) {
                 return {
                     kind: PeriodKind.Intermission,
                     block

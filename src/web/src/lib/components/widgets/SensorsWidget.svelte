@@ -1,74 +1,81 @@
 <script lang="ts">
+    import { RoomService } from "$lib/core/services/room.service";
     import type { RoomCollection } from "$lib/core/domain/room";
 
-    interface Props {
-        rooms: RoomCollection;
-    }
+    const roomService = new RoomService();
+    let rooms = $state<RoomCollection>({});
 
-    let { rooms }: Props = $props();
+    $effect(() => {
+        roomService
+            .fetchInitialSnapshots()
+            .then((data) => {
+                rooms = data;
+            })
+            .catch(() => {
+                // Snapshot retrieval failure handled by subsequent live stream updates
+            });
 
-    const roomList = $derived(Object.values(rooms));
+        const unsubscribe = roomService.watchRooms((updatedRoom) => {
+            rooms = { ...rooms, [updatedRoom.id]: updatedRoom };
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    });
+
+    const roomList = $derived(
+        Object.values(rooms).sort((a, b) => a.id.localeCompare(b.id)),
+    );
 </script>
 
 <aside
-    class="absolute top-6 right-6 z-20 flex flex-col gap-2 rounded-xl border border-neutral-800 bg-neutral-950/80 p-3.5 backdrop-blur-md min-w-[200px] shadow-2xl"
+    class="absolute top-6 right-6 z-20 flex flex-col gap-2 rounded border-2 border-neutral-600 p-2 min-w-60"
 >
-    <header
-        class="flex items-center justify-between border-b border-neutral-800 pb-2"
-    >
-        <span
-            class="text-[11px] font-semibold tracking-wider text-neutral-400 uppercase"
+    <div class="relative size-full">
+        <div
+            class="absolute -top-0.5 -translate-y-full text-sm text-neutral-400 bg-black px-2"
         >
-            Rooms
-        </span>
-        <span class="font-mono text-[10px] text-neutral-500">
-            {roomList.length} active
-        </span>
-    </header>
+            Puertas
+        </div>
 
-    {#if roomList.length === 0}
-        <p class="py-2 text-center text-xs text-neutral-600">
-            No sensors connected
-        </p>
-    {:else}
-        <ul class="flex flex-col gap-1.5">
-            {#each roomList as room (room.id)}
-                <li
-                    class="flex items-center justify-between gap-3 rounded-lg bg-neutral-900/50 px-2.5 py-1.5 border border-neutral-850"
-                >
-                    <div class="flex items-center gap-2">
-                        <span
-                            class="h-2 w-2 rounded-full ring-2 ring-neutral-950"
-                            class:bg-emerald-500={room.door === "CLOSED"}
-                            class:bg-red-500={room.door === "OPEN"}
-                            class:bg-amber-400={room.door === "UNKNOWN"}
-                            class:animate-pulse={room.door === "UNKNOWN"}
-                        ></span>
-                        <span
-                            class="font-mono text-xs font-bold text-neutral-200"
-                        >
-                            {room.id}
-                        </span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span
-                            class="text-[10px] font-medium tracking-wide uppercase"
-                            class:text-neutral-400={room.door !== "UNKNOWN"}
-                            class:text-amber-400={room.door === "UNKNOWN"}
-                            class:animate-pulse={room.door === "UNKNOWN"}
-                        >
-                            {room.door === "UNKNOWN" ? "N/A" : room.door}
-                        </span>
-                        <span
-                            class="font-mono text-[11px] text-neutral-500 tabular-nums"
-                        >
-                            {room.door === "UNKNOWN"
-                                ? "--"
-                                : `${room.batteryLevel}%`}
-                        </span>
-                    </div>
-                </li>
-            {/each}
-        </ul>
-    {/if}
+        {#if roomList.length === 0}
+            <p class="py-2 text-center text-xs text-neutral-600">
+                No hay sensores registrados
+            </p>
+        {:else}
+            <ul class="flex flex-col gap-1.5">
+                {#each roomList as room (room.id)}
+                    <li
+                        class="relative overflow-hidden flex items-center justify-between gap-3 rounded bg-neutral-900/50 px-3 py-2 pl-8 border border-neutral-600/40"
+                    >
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="h-full absolute left-0 w-5 border-r -z-10"
+                                class:bg-emerald-500={room.door === "CLOSED"}
+                                class:bg-red-500={room.door === "OPEN"}
+                                class:bg-amber-400={room.door === "UNKNOWN"}
+                                class:animate-pulse={room.door === "UNKNOWN"}
+                            ></div>
+                            <span
+                                class="font-mono text-base font-bold text-neutral-200"
+                            >
+                                {room.id}
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="text-sm font-medium tracking-wide uppercase"
+                                class:text-neutral-400={room.door !== "UNKNOWN"}
+                                class:text-amber-400={room.door === "UNKNOWN"}
+                                class:animate-pulse={room.door === "UNKNOWN"}
+                            >
+                                {room.door === "UNKNOWN" ? "N/A" : room.door}
+                            </span>
+                        </div>
+                    </li>
+                {/each}
+            </ul>
+        {/if}
+    </div>
 </aside>

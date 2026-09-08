@@ -10,4 +10,5 @@
 
 @theme {
     --font-mono: 'JetBrains Mono', monospace;
+    --default-transition-duration: 200ms;
 }
