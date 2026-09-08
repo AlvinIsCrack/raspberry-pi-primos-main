@@ -47,7 +47,7 @@
             <ul class="flex flex-col gap-1.5">
                 {#each roomList as room (room.id)}
                     <li
-                        class="relative overflow-hidden flex items-center justify-between gap-3 rounded bg-neutral-900/50 px-3 py-2 pl-8 border border-neutral-600/40"
+                        class="relative overflow-hidden flex items-center justify-between gap-3 rounded bg-linear-to-r from-neutral-900/50 px-3 py-2 pl-8 border border-neutral-600/40"
                     >
                         <div class="flex items-center gap-2">
                             <div
@@ -55,7 +55,7 @@
                                 class:bg-emerald-500={room.door === "CLOSED"}
                                 class:bg-red-500={room.door === "OPEN"}
                                 class:bg-amber-400={room.door === "UNKNOWN"}
-                                class:animate-pulse={room.door === "UNKNOWN"}
+                                class:animate-blink={room.door === "UNKNOWN"}
                             ></div>
                             <span
                                 class="font-mono text-base font-bold text-neutral-200"
@@ -68,7 +68,7 @@
                                 class="text-sm font-medium tracking-wide uppercase"
                                 class:text-neutral-400={room.door !== "UNKNOWN"}
                                 class:text-amber-400={room.door === "UNKNOWN"}
-                                class:animate-pulse={room.door === "UNKNOWN"}
+                                class:animate-blink={room.door === "UNKNOWN"}
                             >
                                 {room.door === "UNKNOWN" ? "N/A" : room.door}
                             </span>
