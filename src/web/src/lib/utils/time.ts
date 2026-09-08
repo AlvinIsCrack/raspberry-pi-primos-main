@@ -100,8 +100,11 @@ export function parseTimeStringToMinutes(timeStr: string): number | null {
 
     const hour = parseInt(match[1], 10);
     const minute = parseInt(match[2], 10);
+    const second = match[3] !== undefined ? parseInt(match[3], 10) : 0;
 
-    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+        return null;
+    }
 
     return hour * 60 + minute;
 }
@@ -153,11 +156,16 @@ export function getMinutesIntervalProgress(
     startMinutes: number,
     endMinutes: number
 ): number {
-    if (endMinutes <= startMinutes) return 0;
-    if (currentMinutes <= startMinutes) return 0;
-    if (currentMinutes >= endMinutes) return 1;
+    if (startMinutes === endMinutes) return 0;
 
-    return (currentMinutes - startMinutes) / (endMinutes - startMinutes);
+    let total = endMinutes - startMinutes;
+    let current = currentMinutes - startMinutes;
+
+    if (total <= 0) total += MINUTES_IN_DAY;
+    if (current < 0) current += MINUTES_IN_DAY;
+
+    if (current >= total) return 1;
+    return Math.max(0, Math.min(1, current / total));
 }
 
 /**
@@ -165,7 +173,9 @@ export function getMinutesIntervalProgress(
  * Ideal para sincronizar timers y loops de reloj exactos sin desvíos.
  */
 export function msUntilNextMinute(now: Date = new Date()): number {
-    return (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+    const msIntoMinute = (now.getSeconds() * 1000) + now.getMilliseconds();
+    const remaining = 60000 - msIntoMinute;
+    return remaining === 0 ? 60000 : remaining;
 }
 
 /**
