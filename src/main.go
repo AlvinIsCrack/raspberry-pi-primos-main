@@ -19,7 +19,9 @@ import (
 	"primos/services"
 )
 
-//go:embed all:web/dist
+const webAssetsDir = "web/build"
+
+//go:embed all:web/build
 var embeddedWebAssets embed.FS
 
 const (
@@ -52,21 +54,22 @@ func main() {
 	httpMux := http.NewServeMux()
 	apiRouter.RegisterHTTPRoutes(httpMux)
 
-	distSubtree, subErr := fs.Sub(embeddedWebAssets, "web/dist")
+	buildSubtree, subErr := fs.Sub(embeddedWebAssets, webAssetsDir)
 	if subErr != nil {
 		fmt.Fprintf(os.Stderr, "Static assets initialization failed: %v\n", subErr)
 		os.Exit(1)
 	}
 
 	// SPA fallback file server ensuring index.html availability
-	fileServer := http.FileServer(http.FS(distSubtree))
+	fileServer := http.FileServer(http.FS(buildSubtree))
 	httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		if path == "" {
 			path = "index.html"
 		}
 
-		if _, err := fs.Stat(distSubtree, path); errors.Is(err, fs.ErrNotExist) {
+		stat, err := fs.Stat(buildSubtree, path)
+		if errors.Is(err, fs.ErrNotExist) || (err == nil && stat.IsDir()) {
 			r.URL.Path = "/"
 		}
 		fileServer.ServeHTTP(w, r)
