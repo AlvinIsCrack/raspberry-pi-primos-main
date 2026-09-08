@@ -23,29 +23,30 @@ if ($Build) {
     }
 }
 
+Write-Host "Compilando backend Go para ARMv6..." -ForegroundColor Cyan
+
 $prevGOOS = $env:GOOS
 $prevGOARCH = $env:GOARCH
 $prevGOARM = $env:GOARM
 
+Push-Location src
 try {
     $env:GOOS = "linux"
     $env:GOARCH = "arm"
     $env:GOARM = "6"
+
+    # Asegura que exista el directorio de salida si no está creado
+    if (-not (Test-Path "../build")) {
+        New-Item -ItemType Directory -Path "../build" | Out-Null
+    }
+
     go build -ldflags="-s -w" -o ../build/dashboard .
+    $buildSuccess = ($LASTEXITCODE -eq 0)
 }
 finally {
     $env:GOOS = $prevGOOS
     $env:GOARCH = $prevGOARCH
     $env:GOARM = $prevGOARM
-}
-
-Write-Host "Compilando backend Go para ARMv6..." -ForegroundColor Cyan
-Push-Location src
-try {
-    go build -ldflags="-s -w" -o ../build/dashboard .
-    $buildSuccess = ($LASTEXITCODE -eq 0)
-}
-finally {
     Pop-Location
 }
 
