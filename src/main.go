@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -53,13 +54,23 @@ func main() {
 
 	distSubtree, subErr := fs.Sub(embeddedWebAssets, "web/dist")
 	if subErr != nil {
-		fmt.Fprintf(os.Stderr, "Failed to resolve embedded web directory: %v\n", subErr)
+		fmt.Fprintf(os.Stderr, "Static assets initialization failed: %v\n", subErr)
 		os.Exit(1)
 	}
 
-	// Single-page application handler with index.html root resolution
+	// SPA fallback file server ensuring index.html availability
 	fileServer := http.FileServer(http.FS(distSubtree))
-	httpMux.Handle("/", fileServer)
+	httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+
+		if _, err := fs.Stat(distSubtree, path); errors.Is(err, fs.ErrNotExist) {
+			r.URL.Path = "/"
+		}
+		fileServer.ServeHTTP(w, r)
+	})
 
 	httpServer := &http.Server{
 		Addr:    cfg.HTTPAddr,
