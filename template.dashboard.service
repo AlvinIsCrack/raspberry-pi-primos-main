@@ -1,0 +1,17 @@
+[Unit]
+Description=Primos Backend Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dietpi
+WorkingDirectory=%h
+ExecStart=%h/dashboard
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
