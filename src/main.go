@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,9 +16,13 @@ import (
 	"primos/config"
 	"primos/core"
 	"primos/services"
+	"primos/system"
 )
 
-const shutdownTimeout = 5 * time.Second
+const (
+	shutdownTimeout  = 5 * time.Second
+	provisionTimeout = 5 * time.Minute
+)
 
 func main() {
 	cfg, err := config.Load()
@@ -24,6 +30,23 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Fatal configuration error: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Automatic kiosk verification and provisioning
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), provisionTimeout)
+		defer cancel()
+
+		_, port, err := net.SplitHostPort(cfg.HTTPAddr)
+		if err != nil {
+			port = strings.TrimPrefix(cfg.HTTPAddr, ":")
+		}
+		targetURL := fmt.Sprintf("http://127.0.0.1:%s", port)
+		provisioner := system.NewProvisioner(targetURL)
+
+		if err := provisioner.AutoProvision(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "Kiosk self-healing check warning: %v\n", err)
+		}
+	}()
 
 	lockService := services.NewRoomsLockService()
 
