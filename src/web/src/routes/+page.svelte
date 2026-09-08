@@ -1,25 +1,29 @@
 <script lang="ts">
-    const timeFormatter = new Intl.DateTimeFormat("es-CL", {
-        timeZone: "America/Santiago",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-    });
+    import Clock from "$lib/components/Clock.svelte";
+    import SensorsWidget from "$lib/components/widgets/SensorsWidget.svelte";
+    import { RoomService } from "$lib/core/services/room.service";
+    import type { RoomCollection } from "$lib/core/domain/room";
 
-    let currentTime = $state(timeFormatter.format(new Date()));
+    const roomService = new RoomService();
+    let rooms = $state<RoomCollection>({});
 
     $effect(() => {
-        let timer: ReturnType<typeof setTimeout>;
+        roomService
+            .fetchInitialSnapshots()
+            .then((data) => {
+                rooms = data;
+            })
+            .catch(() => {
+                // Snapshot retrieval failure handled by subsequent live stream updates
+            });
 
-        const tick = () => {
-            const now = new Date();
-            currentTime = timeFormatter.format(now);
-            const delay = 1000 - now.getMilliseconds();
-            timer = setTimeout(tick, delay);
+        const unsubscribe = roomService.watchRooms((updatedRoom) => {
+            rooms[updatedRoom.id] = updatedRoom;
+        });
+
+        return () => {
+            unsubscribe();
         };
-
-        tick();
-        return () => clearTimeout(timer);
     });
 </script>
 
@@ -28,11 +32,8 @@
 </svelte:head>
 
 <main
-    class="flex min-h-screen w-full flex-col items-center justify-center bg-black select-none"
+    class="relative flex min-h-screen w-full items-center justify-center bg-black overflow-hidden select-none"
 >
-    <time
-        class="font-mono text-7xl font-bold tracking-tight text-white tabular-nums"
-    >
-        {currentTime}
-    </time>
+    <SensorsWidget {rooms} />
+    <Clock />
 </main>

@@ -11,7 +11,31 @@ export default defineConfig({
 				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
 				runes: ({ filename }) => filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter()
+			adapter: adapter({
+				pages: 'build',
+				assets: 'build',
+				fallback: 'index.html',
+				precompress: false,
+				strict: true
+			})
 		})
-	]
+	],
+	server: {
+		proxy: {
+			'/api': {
+				target: 'http://127.0.0.1:8080',
+				changeOrigin: true,
+				// Required for streaming Server-Sent Events without buffering
+				ws: false,
+				configure: (proxy) => {
+					proxy.on('proxyRes', (proxyRes) => {
+						if (proxyRes.headers['content-type'] === 'text/event-stream') {
+							proxyRes.headers['cache-control'] = 'no-cache';
+							proxyRes.headers['connection'] = 'keep-alive';
+						}
+					});
+				}
+			}
+		}
+	}
 });
