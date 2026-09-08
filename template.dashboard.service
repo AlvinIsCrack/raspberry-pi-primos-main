@@ -6,8 +6,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=dietpi
-WorkingDirectory=%h
-ExecStart=%h/dashboard
+WorkingDirectory=/home/dietpi
+ExecStart=/home/dietpi/dashboard
 Restart=always
 RestartSec=3
 StandardOutput=journal
