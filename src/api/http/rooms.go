@@ -7,30 +7,32 @@ import (
 
 	"primos/domain"
 	"primos/services"
-
-	netHttp "net/http"
 )
 
-// RoomsHandler expone las operaciones HTTP sobre las salas.
+// RoomsHandler handles HTTP requests and real-time streaming for room states.
 type RoomsHandler struct {
 	lockService *services.RoomsLockService
+	hub         *SSEHub
 }
 
-func NewRoomsHandler(lockService *services.RoomsLockService) *RoomsHandler {
+// NewRoomsHandler creates an HTTP controller with SSE capability.
+func NewRoomsHandler(lockService *services.RoomsLockService, hub *SSEHub) *RoomsHandler {
 	return &RoomsHandler{
 		lockService: lockService,
+		hub:         hub,
 	}
 }
 
-// RegisterHTTP monta las rutas HTTP del dominio de salas.
-func (h *RoomsHandler) RegisterHTTP(mux *netHttp.ServeMux) {
+// RegisterHTTP maps REST routes and the event stream to the HTTP multiplexer.
+func (h *RoomsHandler) RegisterHTTP(mux *http.ServeMux) {
 	mux.HandleFunc("/api/rooms", h.handleRooms)
 	mux.HandleFunc("/api/rooms/", h.handleRoomByID)
+	mux.HandleFunc("/api/events", h.hub.ServeHTTP)
 }
 
 func (h *RoomsHandler) handleRooms(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -42,7 +44,7 @@ func (h *RoomsHandler) handleRooms(w http.ResponseWriter, r *http.Request) {
 func (h *RoomsHandler) handleRoomByID(w http.ResponseWriter, r *http.Request) {
 	roomID := strings.ToUpper(strings.TrimPrefix(r.URL.Path, "/api/rooms/"))
 	if len(roomID) != 3 {
-		http.Error(w, "El ID de la sala debe tener exactamente 3 caracteres", http.StatusBadRequest)
+		http.Error(w, "Room ID must have exactly 3 characters", http.StatusBadRequest)
 		return
 	}
 
@@ -50,7 +52,7 @@ func (h *RoomsHandler) handleRoomByID(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		snapshot, exists := h.lockService.GetSnapshot(roomID)
 		if !exists {
-			http.Error(w, "Sensor no registrado", http.StatusNotFound)
+			http.Error(w, "Sensor not found", http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -59,19 +61,24 @@ func (h *RoomsHandler) handleRoomByID(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var payload domain.TelemetryPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, "Payload JSON inválido: "+err.Error(), http.StatusBadRequest)
+			http.Error(w, "Invalid JSON payload: "+err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		if err := h.lockService.ProcessTelemetry(roomID, payload, "http_shutdown_request"); err != nil {
+		if err := h.lockService.ProcessTelemetry(roomID, payload, "http_request"); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+
+		// Emit SSE update to UI
+		if snapshot, exists := h.lockService.GetSnapshot(roomID); exists {
+			h.hub.Broadcast("room_updated", snapshot)
 		}
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"telemetry_registered"}`))
 
 	default:
-		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }

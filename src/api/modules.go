@@ -6,23 +6,22 @@ import (
 	"primos/services"
 )
 
-// AppServices agrupa los servicios de negocio requeridos por los controladores.
+// AppServices aggregates the domain services needed across controllers.
 type AppServices struct {
 	RoomsLock *services.RoomsLockService
 }
 
-// BuildDefaultRouter ensambla todos los controladores del sistema.
+// BuildDefaultRouter wires HTTP, MQTT, and real-time streaming modules.
 func BuildDefaultRouter(svcs AppServices) *Router {
 	router := NewRouter()
+	sseHub := apiHttp.NewSSEHub()
 
-	// Registro de módulos HTTP
 	router.AttachHTTP(
-		apiHttp.NewRoomsHandler(svcs.RoomsLock),
+		apiHttp.NewRoomsHandler(svcs.RoomsLock, sseHub),
 	)
 
-	// Registro de módulos MQTT
 	router.AttachMQTT(
-		apiMqtt.NewRoomsController(svcs.RoomsLock),
+		apiMqtt.NewRoomsController(svcs.RoomsLock, sseHub),
 	)
 
 	return router

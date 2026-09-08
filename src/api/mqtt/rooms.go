@@ -5,26 +5,28 @@ import (
 	"strconv"
 	"strings"
 
+	"primos/api/http"
 	"primos/core"
 	"primos/domain"
 	"primos/services"
 )
 
-// RoomsController atiende la telemetría y eventos MQTT para sensores de cuartos.
+// RoomsController handles MQTT telemetry and relays updates to the SSE stream.
 type RoomsController struct {
 	lockService *services.RoomsLockService
+	hub         *http.SSEHub
 }
 
-// NewRoomsController crea una instancia del controlador MQTT para salas.
-func NewRoomsController(lockService *services.RoomsLockService) *RoomsController {
+// NewRoomsController creates an instance of the MQTT rooms controller.
+func NewRoomsController(lockService *services.RoomsLockService, hub *http.SSEHub) *RoomsController {
 	return &RoomsController{
 		lockService: lockService,
+		hub:         hub,
 	}
 }
 
-// RegisterMQTT vincula los tópicos de las salas al broker.
+// RegisterMQTT binds room topic listeners to the embedded MQTT broker.
 func (c *RoomsController) RegisterMQTT(broker *core.MQTTBroker) {
-	// Escucha tanto el tópico base como cualquier sub-tópico (status, bateria, etc.)
 	broker.OnMessage("sensores/puertas/#", c.handleDoorMessage)
 }
 
@@ -41,7 +43,6 @@ func (c *RoomsController) handleDoorMessage(topic string, rawPayload []byte) {
 
 	payloadStr := strings.TrimSpace(string(rawPayload))
 
-	// Manejo por sub-tópico específico: sensores/puertas/{id}/...
 	if len(parts) >= 4 {
 		subTopic := strings.ToLower(parts[3])
 		switch subTopic {
@@ -49,6 +50,7 @@ func (c *RoomsController) handleDoorMessage(topic string, rawPayload []byte) {
 			lower := strings.ToLower(payloadStr)
 			if lower == "offline" || lower == "shutdown" {
 				_ = c.lockService.ReportShutdown(roomID, "mqtt_lwt_disconnect")
+				c.notifyUpdate(roomID)
 			}
 		case "bateria", "battery":
 			if level, err := strconv.Atoi(payloadStr); err == nil {
@@ -61,22 +63,20 @@ func (c *RoomsController) handleDoorMessage(topic string, rawPayload []byte) {
 					Door:         door,
 					BatteryLevel: level,
 				})
+				c.notifyUpdate(roomID)
 			}
 		}
 		return
 	}
 
-	// Manejo en tópico base: sensores/puertas/{id}
-	// Intento A: JSON estructurado
 	var payload domain.TelemetryPayload
 	if err := json.Unmarshal(rawPayload, &payload); err == nil {
-		_ = c.lockService.ProcessTelemetry(roomID, payload, "mqtt_shutdown_or_lwt")
+		_ = c.lockService.ProcessTelemetry(roomID, payload, "mqtt_telemetry")
+		c.notifyUpdate(roomID)
 		return
 	}
 
-	// Intento B: Payload de texto plano
 	upperText := strings.ToUpper(payloadStr)
-
 	var doorState domain.DoorState
 	switch upperText {
 	case string(domain.DoorOpen), "1", "TRUE", "OPEN", "ABIERTO", "ABIERTA":
@@ -91,5 +91,12 @@ func (c *RoomsController) handleDoorMessage(topic string, rawPayload []byte) {
 		_ = c.lockService.ProcessTelemetry(roomID, domain.TelemetryPayload{
 			Door: doorState,
 		}, "mqtt_raw_state")
+		c.notifyUpdate(roomID)
+	}
+}
+
+func (c *RoomsController) notifyUpdate(roomID string) {
+	if snapshot, exists := c.lockService.GetSnapshot(roomID); exists {
+		c.hub.Broadcast("room_updated", snapshot)
 	}
 }
