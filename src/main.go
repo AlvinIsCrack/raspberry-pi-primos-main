@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -16,7 +14,6 @@ import (
 	"primos/config"
 	"primos/core"
 	"primos/services"
-	"primos/system"
 )
 
 const (
@@ -30,26 +27,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Fatal configuration error: %v\n", err)
 		os.Exit(1)
 	}
-
-	// Automatic kiosk verification and provisioning
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), provisionTimeout)
-		defer cancel()
-
-		_, port, err := net.SplitHostPort(cfg.HTTPAddr)
-		if err != nil {
-			port = strings.TrimPrefix(cfg.HTTPAddr, ":")
-		}
-		targetURL := fmt.Sprintf("http://127.0.0.1:%s", port)
-		provisioner := system.NewProvisioner(targetURL)
-
-		fmt.Printf("Starting kiosk auto-provisioning check for %s...\n", targetURL)
-		if err := provisioner.AutoProvision(ctx); err != nil {
-			fmt.Fprintf(os.Stderr, "Kiosk provisioning error: %v\n", err)
-		} else {
-			fmt.Println("Kiosk auto-provisioning check completed successfully.")
-		}
-	}()
 
 	lockService := services.NewRoomsLockService()
 
