@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,7 +18,13 @@ import (
 	"primos/config"
 	"primos/core"
 	"primos/services"
+	"primos/system"
 )
+
+// Embedded static web application assets
+//
+//go:embed web/dist/*
+var webAssets embed.FS
 
 const (
 	shutdownTimeout  = 5 * time.Second
@@ -27,6 +37,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Fatal configuration error: %v\n", err)
 		os.Exit(1)
 	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), provisionTimeout)
+		defer cancel()
+
+		_, port, splitErr := net.SplitHostPort(cfg.HTTPAddr)
+		if splitErr != nil {
+			port = strings.TrimPrefix(cfg.HTTPAddr, ":")
+		}
+		targetURL := fmt.Sprintf("http://127.0.0.1:%s", port)
+		provisioner := system.NewProvisioner(targetURL)
+
+		if err := provisioner.AutoProvision(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "Kiosk provisioning warning: %v\n", err)
+		}
+	}()
 
 	lockService := services.NewRoomsLockService()
 
@@ -45,6 +71,14 @@ func main() {
 
 	httpMux := http.NewServeMux()
 	apiRouter.RegisterHTTPRoutes(httpMux)
+
+	// Isolate sub-tree to serve root index safely
+	distFS, fsErr := fs.Sub(webAssets, "web/dist")
+	if fsErr != nil {
+		fmt.Fprintf(os.Stderr, "Static assets initialization failed: %v\n", fsErr)
+		os.Exit(1)
+	}
+	httpMux.Handle("/", http.FileServer(http.FS(distFS)))
 
 	httpServer := &http.Server{
 		Addr:    cfg.HTTPAddr,
