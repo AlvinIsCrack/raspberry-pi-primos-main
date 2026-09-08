@@ -17,7 +17,7 @@ const (
 
 var kioskUnitTmpl = template.Must(template.New("kiosk").Parse(`[Unit]
 Description=DietPi Lightweight Kiosk Display
-After=network.target dashboard.service
+After=network-online.target dashboard.service
 Wants=dashboard.service
 
 [Service]
@@ -25,7 +25,7 @@ User=dietpi
 Environment=WPE_COG_PLATFORM=drm
 ExecStart=/usr/bin/cog {{.TargetURL}}
 Restart=always
-RestartSec=5
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
@@ -79,11 +79,12 @@ func (p *Provisioner) AutoProvision(ctx context.Context) error {
 	}
 
 	if os.Geteuid() != 0 {
-		return errors.New("provisioning requires elevated privileges: run as root or ensure proper sudoer permissions")
+		return errors.New("provisioning requires elevated privileges (run as root)")
 	}
 
+	// Bypass package manager execution if outbound connection is unavailable
 	if err := p.installRequiredPackages(ctx); err != nil {
-		return fmt.Errorf("dependency resolution failed: %w", err)
+		return fmt.Errorf("package setup aborted: %w", err)
 	}
 
 	if err := p.writeSystemdService(); err != nil {
@@ -96,6 +97,11 @@ func (p *Provisioner) AutoProvision(ctx context.Context) error {
 func (p *Provisioner) installRequiredPackages(ctx context.Context) error {
 	if _, err := exec.LookPath("cog"); err == nil {
 		return nil
+	}
+
+	// Fail-fast if offline to prevent apt-get hanging during startup
+	if !HasInternetAccess(ctx) {
+		return errors.New("offline mode: cannot install missing kiosk packages without network access")
 	}
 
 	updateCmd := exec.CommandContext(ctx, "apt-get", "update", "-y")
