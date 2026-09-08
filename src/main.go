@@ -43,8 +43,11 @@ func main() {
 		targetURL := fmt.Sprintf("http://127.0.0.1:%s", port)
 		provisioner := system.NewProvisioner(targetURL)
 
+		fmt.Printf("Starting kiosk auto-provisioning check for %s...\n", targetURL)
 		if err := provisioner.AutoProvision(ctx); err != nil {
-			fmt.Fprintf(os.Stderr, "Kiosk self-healing check warning: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Kiosk provisioning error: %v\n", err)
+		} else {
+			fmt.Println("Kiosk auto-provisioning check completed successfully.")
 		}
 	}()
 

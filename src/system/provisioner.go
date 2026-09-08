@@ -82,16 +82,27 @@ func (p *Provisioner) AutoProvision(ctx context.Context) error {
 		return errors.New("provisioning requires elevated privileges (run as root)")
 	}
 
-	// Bypass package manager execution if outbound connection is unavailable
-	if err := p.installRequiredPackages(ctx); err != nil {
-		return fmt.Errorf("package setup aborted: %w", err)
-	}
-
+	// Always generate the service unit locally first
 	if err := p.writeSystemdService(); err != nil {
 		return fmt.Errorf("failed writing systemd unit: %w", err)
 	}
 
-	return p.enableAndStartService(ctx)
+	// Attempt dependency installation; capture failure without discarding configuration
+	var installErr error
+	if _, err := exec.LookPath("cog"); err != nil {
+		if err := p.installRequiredPackages(ctx); err != nil {
+			installErr = fmt.Errorf("package setup failed: %w", err)
+		}
+	}
+
+	if err := p.enableAndStartService(ctx); err != nil {
+		if installErr != nil {
+			return fmt.Errorf("%w; service startup failed: %v", installErr, err)
+		}
+		return fmt.Errorf("failed starting kiosk service: %w", err)
+	}
+
+	return installErr
 }
 
 func (p *Provisioner) installRequiredPackages(ctx context.Context) error {
