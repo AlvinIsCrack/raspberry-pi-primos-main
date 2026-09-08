@@ -1,24 +1,15 @@
 <script lang="ts">
-    /**
-     * Formatter configured strictly for 24-hour display in Santiago timezone.
-     */
-    const timeFormatter = new Intl.DateTimeFormat("es-CL", {
-        timeZone: "America/Santiago",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-    });
+    import { formatTimeDisplay, msUntilNextMinute } from "$lib/utils/time";
 
-    let currentTime = $state(timeFormatter.format(new Date()));
+    let currentTime = $state(formatTimeDisplay());
 
     $effect(() => {
         let timer: ReturnType<typeof setTimeout>;
 
         const tick = () => {
-            const now = new Date();
-            currentTime = timeFormatter.format(now);
-            const delay = 1000 - now.getMilliseconds();
-            timer = setTimeout(tick, delay);
+            currentTime = formatTimeDisplay();
+            // Calcula el retraso exacto hasta el cambio de minuto para evitar desvíos
+            timer = setTimeout(tick, msUntilNextMinute());
         };
 
         tick();
