@@ -1,37 +1,36 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	netHttp "net/http"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"primos/api"
 	"primos/config"
 	"primos/core"
 	"primos/services"
-	"primos/ui"
-	"primos/ui/views/dashboard"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
+const shutdownTimeout = 5 * time.Second
+
 func main() {
-	// Carga de configuración, setup inicial
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal configuration error: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Dominio / Servicios
 	lockService := services.NewRoomsLockService()
 
-	// Enrutador centralizado de API
 	apiRouter := api.BuildDefaultRouter(api.AppServices{
 		RoomsLock: lockService,
 	})
 
-	// Broker MQTT
 	mqttBroker := core.NewMQTTBroker(cfg.MQTTAddr)
 	apiRouter.RegisterMQTTRoutes(mqttBroker)
 
@@ -40,32 +39,31 @@ func main() {
 			fmt.Fprintf(os.Stderr, "MQTT Server error: %v\n", err)
 		}
 	}()
-	defer mqttBroker.Stop()
 
-	// Servidor HTTP
-	httpMux := netHttp.NewServeMux()
+	httpMux := http.NewServeMux()
 	apiRouter.RegisterHTTPRoutes(httpMux)
 
-	httpServer := &netHttp.Server{
+	httpServer := &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: httpMux,
 	}
 
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != netHttp.ErrServerClosed {
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			fmt.Fprintf(os.Stderr, "HTTP Server error: %v\n", err)
 		}
 	}()
 
-	// Bubble Tea TUI
-	initialModel := dashboard.NewModel(ui.DefaultTheme, lockService)
-	program := tea.NewProgram(
-		initialModel,
-		tea.WithAltScreen(),
-	)
+	shutdownSig := make(chan os.Signal, 1)
+	signal.Notify(shutdownSig, os.Interrupt, syscall.SIGTERM)
+	<-shutdownSig
 
-	if _, err := program.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Fatal runtime error: %v\n", err)
-		os.Exit(1)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "HTTP graceful shutdown failed: %v\n", err)
 	}
+
+	mqttBroker.Stop()
 }
