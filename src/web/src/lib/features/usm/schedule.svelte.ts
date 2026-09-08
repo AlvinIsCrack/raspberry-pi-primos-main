@@ -4,7 +4,6 @@ import { getCurrentAcademicSchedule, type CurrentScheduleState } from './bloques
 export class AcademicScheduleManager {
     current = $state<CurrentScheduleState>(getCurrentAcademicSchedule());
     private timerId?: ReturnType<typeof setTimeout>;
-    private syncTimeout?: ReturnType<typeof setTimeout>;
 
     constructor(autoStart = true) {
         if (autoStart && typeof window !== 'undefined') {

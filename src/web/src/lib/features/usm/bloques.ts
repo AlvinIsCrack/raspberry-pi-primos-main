@@ -1,11 +1,13 @@
 import {
     getMinutesOfDay,
     isWithinMinutesRange,
-    minutesToTimeString
+    getMinutesIntervalProgress
 } from '$lib/utils/time';
 
 export const BLOCK_DURATION_MINUTES = 35;
 export const BLOCK_INTERMISSION_DURATION_MINUTES = 15;
+export const MODULE_TOTAL_DURATION_MINUTES = (BLOCK_DURATION_MINUTES * 2) + BLOCK_INTERMISSION_DURATION_MINUTES; // 85 min
+
 export const LUNCH_START_MINUTES = 13 * 60 + 40; // 13:40 -> 820 min
 export const LUNCH_END_MINUTES = 14 * 60 + 30;   // 14:30 -> 870 min
 
@@ -33,11 +35,10 @@ export interface CurrentScheduleState {
     kind: PeriodKind;
     block?: AcademicBlock;
     activeSubBlock?: 1 | 2;
+    progress: number;
+    minutesRange: [start: number, end: number] | null;
 }
 
-/**
- * Genera de forma determinista la grilla estándar de bloques dobles de la USM.
- */
 export function buildStandardBlocks(): AcademicBlock[] {
     const blocks: AcademicBlock[] = [];
     let cursor = DAY_START_HOUR * 60 + DAY_START_MINUTE;
@@ -46,7 +47,6 @@ export function buildStandardBlocks(): AcademicBlock[] {
         const firstIdx = i * 2 + 1;
         const secondIdx = firstIdx + 1;
 
-        // Salta el intervalo de almuerzo institucional si coincide
         if (cursor >= LUNCH_START_MINUTES && cursor < LUNCH_END_MINUTES) {
             cursor = LUNCH_END_MINUTES;
         }
@@ -70,44 +70,59 @@ export function buildStandardBlocks(): AcademicBlock[] {
 
 export const STANDARD_BLOCKS = buildStandardBlocks();
 
-/**
- * Evalúa el momento temporal contra los bloques calculados, descansos y almuerzo.
- */
 export function getCurrentAcademicSchedule(date: Date = new Date()): CurrentScheduleState {
-    // Obtiene los minutos del día respetando la zona horaria (America/Santiago por defecto)
     const current = getMinutesOfDay(date);
 
-    // Horario de almuerzo
+    // 1. Periodo de almuerzo
     if (isWithinMinutesRange(current, LUNCH_START_MINUTES, LUNCH_END_MINUTES, { inclusiveEnd: false })) {
-        return { kind: PeriodKind.Lunch };
+        const progress = getMinutesIntervalProgress(current, LUNCH_START_MINUTES, LUNCH_END_MINUTES);
+        return {
+            kind: PeriodKind.Lunch,
+            progress,
+            minutesRange: [LUNCH_START_MINUTES, LUNCH_END_MINUTES]
+        };
     }
 
+    // 2. Módulos lectivos e intermisiones
     for (let i = 0; i < STANDARD_BLOCKS.length; i++) {
         const block = STANDARD_BLOCKS[i];
-        const start = block.startHour * 60 + block.startMin;
-        const end = block.endHour * 60 + block.endMin;
+        const moduleStart = block.startHour * 60 + block.startMin;
+        const lectureEnd = block.endHour * 60 + block.endMin;
+        const moduleEnd = lectureEnd + BLOCK_INTERMISSION_DURATION_MINUTES; // Fin del módulo completo con receso
 
-        // En clase / periodo lectivo (inclusive ambos extremos según la lógica original)
-        if (isWithinMinutesRange(current, start, end, { inclusiveStart: true, inclusiveEnd: false })) {
-            const midpoint = start + BLOCK_DURATION_MINUTES;
-            return {
-                kind: PeriodKind.Lecture,
-                block,
-                activeSubBlock: current >= midpoint ? 2 : 1
-            };
-        }
+        // ¿Está dentro del módulo (clases o su posterior descanso)?
+        if (isWithinMinutesRange(current, moduleStart, moduleEnd, { inclusiveStart: true, inclusiveEnd: false })) {
+            const progress = getMinutesIntervalProgress(current, moduleStart, moduleEnd);
+            const minutesRange: [number, number] = [moduleStart, moduleEnd];
 
-        // En ventana de descanso (intermisión entre bloques)
-        if (i < STANDARD_BLOCKS.length - 1) {
-            const nextStart = STANDARD_BLOCKS[i + 1].startHour * 60 + STANDARD_BLOCKS[i + 1].startMin;
-            if (isWithinMinutesRange(current, end, nextStart, { inclusiveStart: true, inclusiveEnd: false })) {
+            // Sub-bloque 1 o 2 de clases
+            if (current < lectureEnd) {
+                const midpoint = moduleStart + BLOCK_DURATION_MINUTES;
+                const activeSubBlock: 1 | 2 = current >= midpoint ? 2 : 1;
+
                 return {
-                    kind: PeriodKind.Intermission,
-                    block
+                    kind: PeriodKind.Lecture,
+                    block,
+                    activeSubBlock,
+                    progress,
+                    minutesRange
                 };
             }
+
+            // Descanso / intermisión del módulo
+            return {
+                kind: PeriodKind.Intermission,
+                block,
+                progress,
+                minutesRange
+            };
         }
     }
 
-    return { kind: PeriodKind.OffHours };
+    // 3. Fuera de horario
+    return {
+        kind: PeriodKind.OffHours,
+        progress: 0,
+        minutesRange: null
+    };
 }
