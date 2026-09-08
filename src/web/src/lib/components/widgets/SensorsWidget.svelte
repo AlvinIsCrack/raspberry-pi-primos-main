@@ -51,10 +51,10 @@
                     >
                         <div class="flex items-center gap-2">
                             <div
-                                class="h-full absolute left-0 w-5 border-r -z-10"
-                                class:bg-emerald-500={room.door === "CLOSED"}
-                                class:bg-red-500={room.door === "OPEN"}
-                                class:bg-amber-400={room.door === "UNKNOWN"}
+                                class="h-full absolute left-0 w-5 -z-10"
+                                class:bg-secondary={room.door === "CLOSED"}
+                                class:bg-primary={room.door === "OPEN"}
+                                class:bg-warning={room.door === "UNKNOWN"}
                                 class:animate-blink={room.door === "UNKNOWN"}
                             ></div>
                             <span
@@ -67,7 +67,7 @@
                             <span
                                 class="text-sm font-medium tracking-wide uppercase"
                                 class:text-neutral-400={room.door !== "UNKNOWN"}
-                                class:text-amber-400={room.door === "UNKNOWN"}
+                                class:text-warning={room.door === "UNKNOWN"}
                                 class:animate-blink={room.door === "UNKNOWN"}
                             >
                                 {room.door === "UNKNOWN" ? "N/A" : room.door}

@@ -9,7 +9,41 @@
     src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
 }
 
+@layer base {
+    :root {
+        --color-primary: #8b5cf6;
+        --color-primary-content: #ffffff;
+
+        --color-secondary: #7c759c;
+        --color-secondary-content: #ffffff;
+
+        --color-warning: #f59e0b;
+        --color-warning-content: #000000;
+
+        --color-info: #0ea5e9;
+        --color-success: #22c55e;
+        --color-danger: #ef4444;
+    }
+
+    html {
+        @apply bg-black text-white;
+    }
+}
+
 @theme {
     --font-mono: 'JetBrains Mono', monospace;
     --default-transition-duration: 200ms;
+
+    --color-primary: var(--color-primary);
+    --color-primary-content: var(--color-primary-content);
+
+    --color-secondary: var(--color-secondary);
+    --color-secondary-content: var(--color-secondary-content);
+
+    --color-warning: var(--color-warning);
+    --color-warning-content: var(--color-warning-content);
+
+    --color-info: var(--color-info);
+    --color-success: var(--color-success);
+    --color-danger: var(--color-danger);
 }
