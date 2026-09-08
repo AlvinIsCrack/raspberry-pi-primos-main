@@ -6,7 +6,9 @@ $env:GOARCH = "arm"
 $env:GOARM = "6"
 
 Write-Host "Compilando para ARMv6..." -ForegroundColor Cyan
-go build -ldflags="-s -w" -o build/dashboard src/main.go
+Push-Location src
+go build -ldflags="-s -w" -o ../build/dashboard .
+Pop-Location
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Subiendo binario a la Raspberry Pi..." -ForegroundColor Cyan
