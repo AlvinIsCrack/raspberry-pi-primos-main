@@ -1,10 +1,15 @@
 <script lang="ts">
 	import "$lib/css/layout.css";
 	import BootSequence from "$lib/components/BootSequence.svelte";
+	import { setContext } from "svelte";
 
 	let { children } = $props();
-
 	let isBooting = $state(true);
+	let isReady = $state(false);
+
+	setContext("app_ready", () => {
+		isReady = true;
+	});
 </script>
 
 <svelte:head>
@@ -12,7 +17,7 @@
 </svelte:head>
 
 {#if isBooting}
-	<BootSequence oncomplete={() => (isBooting = false)} />
-{:else}
-	{@render children()}
+	<BootSequence ready={isReady} oncomplete={() => (isBooting = false)} />
 {/if}
+
+{@render children?.()}

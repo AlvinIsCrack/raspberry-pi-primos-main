@@ -2,33 +2,45 @@
     import { onMount } from "svelte";
 
     interface Props {
+        ready?: boolean;
         oncomplete?: () => void;
     }
 
-    let { oncomplete }: Props = $props();
+    let { ready = true, oncomplete }: Props = $props();
 
-    // Estados de animación
-    let isVisible = $state(false); // Controla el Fade In del logo
-    let isFadingOut = $state(false); // Controla el Fade Out de toda la pantalla al negro
+    let isVisible = $state(false);
+    let isFadingOut = $state(false);
+    let minTimePassed = $state(false);
 
     onMount(() => {
+        // Fade in inicial del logo
         const showTimer = setTimeout(() => {
             isVisible = true;
-        }, 80);
+        }, 50);
 
-        const fadeOutTimer = setTimeout(() => {
-            isFadingOut = true;
-        }, 3800);
-
-        const completeTimer = setTimeout(() => {
-            oncomplete?.();
-        }, 4400);
+        // Tiempo mínimo garantizado para ver el logo (ej: 1.5s)
+        const minDisplayTimer = setTimeout(() => {
+            minTimePassed = true;
+        }, 1500);
 
         return () => {
             clearTimeout(showTimer);
-            clearTimeout(fadeOutTimer);
-            clearTimeout(completeTimer);
+            clearTimeout(minDisplayTimer);
         };
+    });
+
+    // Solo inicia el fade-out cuando ya cargó todo Y pasó el tiempo mínimo
+    $effect(() => {
+        if (ready && minTimePassed && !isFadingOut) {
+            isFadingOut = true;
+
+            // 650ms coincide con la duración de la transición CSS
+            const finishTimer = setTimeout(() => {
+                oncomplete?.();
+            }, 650);
+
+            return () => clearTimeout(finishTimer);
+        }
     });
 </script>
 
@@ -41,9 +53,7 @@
     <div
         class="flex flex-col items-center justify-center transition-all duration-700 ease-out transform"
         class:opacity-100={isVisible}
-        class:scale-100={isVisible}
         class:opacity-0={!isVisible}
-        class:scale-95={!isVisible}
     >
         <img
             class="logo-img h-50 w-auto object-contain flex items-center justify-center"
