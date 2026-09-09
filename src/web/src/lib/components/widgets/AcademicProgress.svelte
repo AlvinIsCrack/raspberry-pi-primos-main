@@ -50,7 +50,7 @@
             class="relative w-full h-8 rounded bg-background border overflow-hidden"
         >
             <div
-                class="h-full bg-primary"
+                class="h-full bg-border"
                 style="width: {progressPercent}%"
             ></div>
 
