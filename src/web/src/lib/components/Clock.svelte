@@ -18,7 +18,7 @@
 </script>
 
 <time
-    class="font-mono text-8xl font-bold tracking-tight text-white tabular-nums select-none"
+    class="font-mono text-9xl font-bold tracking-tight text-white tabular-nums select-none"
 >
     {currentTime}
 </time>

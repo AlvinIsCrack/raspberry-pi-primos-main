@@ -44,18 +44,18 @@
 </script>
 
 {#if isVisible}
-    <div class="flex flex-col items-center gap-1 mt-2 w-72 select-none">
+    <div class="flex flex-col items-center gap-1 mt-2 w-sm select-none">
         <!-- Barra de progreso -->
         <div
-            class="relative w-full h-6 rounded bg-neutral-900 border border-neutral-800 overflow-hidden"
+            class="relative w-full h-8 rounded bg-background border overflow-hidden"
         >
             <div
-                class="h-full transition-all duration-500 ease-out bg-neutral-200"
+                class="h-full bg-neutral-200"
                 style="width: {progressPercent}%"
             ></div>
 
             <div
-                class="absolute left-1/2 top-1/2 -translate-1/2 font-semibold text-base text-white mix-blend-exclusion"
+                class="absolute left-1/2 top-1/2 -translate-1/2 font-semibold text-base text-foreground bg-background rounded px-2"
             >
                 <span>{progressPercent}%</span>
             </div>
