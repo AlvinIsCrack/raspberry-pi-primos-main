@@ -46,25 +46,17 @@
                 No hay sensores registrados
             </p>
         {:else}
-            {@const icons: Record<string, string> = {
-                UNKNOWN: "*",
-            }}
             <ul class="flex flex-col gap-1.5">
                 {#each roomList as room (room.id)}
                     <li
                         class="relative overflow-hidden flex items-center justify-between gap-3 rounded px-4 py-2 border border-border/60"
                     >
                         <div class="flex items-center text-2xl gap-2">
-                            {#if room.door in icons}
+                            {#if room.door === "UNKNOWN"}
                                 <span
-                                    class="-mx-1 font-bold text-xl tracking-tighter"
-                                    class:text-primary={room.door === "ABR"}
-                                    class:text-secondary={room.door === "CER"}
-                                    class:text-warning={room.door === "UNKNOWN"}
-                                    class:animate-blink={room.door ===
-                                        "UNKNOWN"}
+                                    class="-mx-1 font-bold text-xl tracking-tighter text-warning animate-blink"
                                 >
-                                    {icons[room.door]}
+                                    *
                                 </span>
                             {/if}
 
