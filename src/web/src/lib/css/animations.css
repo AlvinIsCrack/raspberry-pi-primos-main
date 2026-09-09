@@ -1,15 +1,16 @@
 @keyframes terminal-blink {
 
     0%,
-    100% {
-        opacity: 1;
+    49% {
+        visibility: visible;
     }
 
-    50% {
-        opacity: 0;
+    50%,
+    100% {
+        visibility: hidden;
     }
 }
 
 @theme {
-    --animate-blink: terminal-blink 1s steps(1, start) infinite;
+    --animate-blink: terminal-blink 2s steps(1, start) infinite;
 }

@@ -9,30 +9,52 @@
     src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
 }
 
-@layer base {
-    :root {
-        --color-primary: #8b5cf6;
-        --color-primary-content: #ffffff;
+:root {
+    --color-background: #000000;
+    --color-foreground: #f5ecfb;
 
-        --color-secondary: #7c759c;
-        --color-secondary-content: #ffffff;
+    --color-card: #0d0b11;
+    --color-card-content: #f5ecfb;
 
-        --color-warning: #f59e0b;
-        --color-warning-content: #000000;
+    --color-primary: #8a15ff;
+    --color-primary-content: #ffffff;
 
-        --color-info: #0ea5e9;
-        --color-success: #22c55e;
-        --color-danger: #ef4444;
-    }
+    --color-secondary: #6e74b2;
+    --color-secondary-content: #ffffff;
 
-    html {
-        @apply bg-black text-white;
-    }
+    --color-accent: #261938;
+    --color-accent-content: #d8b4fe;
+
+    --color-muted: #1e1a24;
+    --color-muted-content: #a399b0;
+
+    --color-info: #30a8ee;
+    --color-info-content: #000000;
+
+    --color-success: #6bff08;
+    --color-success-content: #000000;
+
+    --color-warning: #ff8c08;
+    --color-warning-content: #000000;
+
+    --color-danger: #eb2a2a;
+    --color-danger-content: #ffffff;
+
+    --color-border: #59535f;
+    --color-border-subtle: #2d2833;
+    --color-ring: #8a15ff;
+    --color-overlay: rgba(0, 0, 0, 0.75);
 }
 
 @theme {
     --font-mono: 'JetBrains Mono', monospace;
     --default-transition-duration: 200ms;
+
+    --color-background: var(--color-background);
+    --color-foreground: var(--color-foreground);
+
+    --color-card: var(--color-card);
+    --color-card-content: var(--color-card-content);
 
     --color-primary: var(--color-primary);
     --color-primary-content: var(--color-primary-content);
@@ -40,10 +62,58 @@
     --color-secondary: var(--color-secondary);
     --color-secondary-content: var(--color-secondary-content);
 
+    --color-accent: var(--color-accent);
+    --color-accent-content: var(--color-accent-content);
+
+    --color-muted: var(--color-muted);
+    --color-muted-content: var(--color-muted-content);
+
+    --color-info: var(--color-info);
+    --color-info-content: var(--color-info-content);
+
+    --color-success: var(--color-success);
+    --color-success-content: var(--color-success-content);
+
     --color-warning: var(--color-warning);
     --color-warning-content: var(--color-warning-content);
 
-    --color-info: var(--color-info);
-    --color-success: var(--color-success);
     --color-danger: var(--color-danger);
+    --color-danger-content: var(--color-danger-content);
+
+    --color-border: var(--color-border);
+    --color-border-subtle: var(--color-border-subtle);
+    --color-ring: var(--color-ring);
+    --color-overlay: var(--color-overlay);
+}
+
+@layer base {
+
+    *,
+    *::before,
+    *::after {
+        filter: none;
+        backdrop-filter: none;
+        box-shadow: none;
+        text-shadow: none;
+
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeSpeed;
+
+        @apply border-border;
+    }
+
+    html,
+    body {
+        @apply bg-background text-foreground;
+        /* Evitar bounce/overscroll y asegurar viewport estático */
+        overscroll-behavior: none;
+        touch-action: none;
+        user-select: none;
+        overflow: hidden;
+    }
+
+    /* Aislamiento de capas para evitar invalidación global de la ventana */
+    main {
+        contain: strict;
+    }
 }
