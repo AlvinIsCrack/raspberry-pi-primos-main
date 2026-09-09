@@ -34,11 +34,11 @@ if ($Setup) {
     }
 
     $setupScript = "set -e; " +
-               "trap 'rm -f /tmp/template.dashboard.service /tmp/template.kiosk.service' EXIT; " +
-               "sudo install -m 644 -o root -g root /tmp/template.dashboard.service /etc/systemd/system/dashboard.service; " +
-               "sudo install -m 644 -o root -g root /tmp/template.kiosk.service /etc/systemd/system/kiosk.service; " +
-               "sudo systemctl daemon-reload; " +
-               "sudo systemctl enable --now dashboard.service kiosk.service"
+    "trap 'rm -f /tmp/template.dashboard.service /tmp/template.kiosk.service' EXIT; " +
+    "sudo install -m 644 -o root -g root /tmp/template.dashboard.service /etc/systemd/system/dashboard.service; " +
+    "sudo install -m 644 -o root -g root /tmp/template.kiosk.service /etc/systemd/system/kiosk.service; " +
+    "sudo systemctl daemon-reload; " +
+    "sudo systemctl enable --now dashboard.service kiosk.service"
     
     ssh "$($USER)@$($IP)" $setupScript
     if ($LASTEXITCODE -ne 0) {
@@ -75,44 +75,30 @@ finally {
 }
 
 if ($buildSuccess) {
-    Write-Host "Transfiriendo binario y reiniciando servicios..." -ForegroundColor Cyan
-
-    $remoteScript = "set -e; " +
-                    "sudo systemctl stop dashboard.service kiosk.service 2>/dev/null || true; " +
-                    "sudo fuser -k 8080/tcp 1883/tcp >/dev/null 2>&1 || true; " +
-                    "cat > /home/$USER/dashboard.new; " +
-                    "chmod +x /home/$USER/dashboard.new; " +
-                    "mv -f /home/$USER/dashboard.new /home/$USER/dashboard; " +
-                    "sudo systemctl start dashboard.service kiosk.service"
-
+    Write-Host "Transfiriendo binario..." -ForegroundColor Cyan
     $binaryPath = (Resolve-Path "build/dashboard").Path
 
-    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.RedirectStandardError = $true
-    $startInfo.FileName = "ssh"
-    $startInfo.Arguments = "$($USER)@$($IP) `"$remoteScript`""
-    $startInfo.UseShellExecute = $false
-    $startInfo.RedirectStandardInput = $true
-
-    $process = [System.Diagnostics.Process]::Start($startInfo)
-    $fileStream = [System.IO.File]::OpenRead($binaryPath)
-
-    try {
-        $fileStream.CopyTo($process.StandardInput.BaseStream)
-    }
-    finally {
-        $fileStream.Dispose()
-        $process.StandardInput.BaseStream.Dispose()
+    scp $binaryPath "$($USER)@$($IP):/home/$($USER)/dashboard.new"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Fallo al transferir el binario mediante scp." -ForegroundColor Red
+        exit 1
     }
 
-    $stderr = $process.StandardError.ReadToEnd()
-    $process.WaitForExit()
+    $remoteScript = "set -e; " +
+    "sudo systemctl stop dashboard.service kiosk.service 2>/dev/null || true; " +
+    "sudo fuser -k 8080/tcp 1883/tcp >/dev/null 2>&1 || true; " +
+    "chmod +x /home/$USER/dashboard.new; " +
+    "mv -f /home/$USER/dashboard.new /home/$USER/dashboard; " +
+    "sudo systemctl start dashboard.service kiosk.service"
 
-    if ($process.ExitCode -eq 0) {
+    Write-Host "Reiniciando servicios remotos..." -ForegroundColor Cyan
+    ssh "$($USER)@$($IP)" $remoteScript
+
+    if ($LASTEXITCODE -eq 0) {
         Write-Host "Despliegue completado exitosamente." -ForegroundColor Green
     }
     else {
-        Write-Host "Fallo durante la transferencia o reinicio remoto: $stderr" -ForegroundColor Red
+        Write-Host "Fallo durante la configuración o reinicio remoto." -ForegroundColor Red
         exit 1
     }
 }
