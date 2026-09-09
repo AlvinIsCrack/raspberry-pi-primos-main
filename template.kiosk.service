@@ -18,11 +18,23 @@ StandardOutput=journal
 StandardError=journal
 RuntimeDirectory=kiosk
 RuntimeDirectoryMode=0700
+
+# Variables de plataforma DRM y sistema
 Environment=XDG_RUNTIME_DIR=/run/kiosk
 Environment=WPE_COG_PLATFORM=drm
 Environment=COG_PLATFORM_FDO_VIEW_BACKEND=drm
 Environment=NO_AT_BRIDGE=1
 Environment=WEBKIT_FORCE_SANDBOX=0
+
+# Optimizaciones clave para CPU ARMv6 mononúcleo y 512 MB RAM
+Environment=WEBKIT_FORCE_COMPOSITING_MODE=1
+Environment=JSC_maxPerThreadStack=524288
+Environment=WEBKIT_NICOSIA_PAINTING_THREADS=1
+
+# Prioridad de CPU para evitar microtirones de renderizado
+Nice=-5
+
+# Limitar a 1 proceso web y pasar la plataforma explícita a cog
 ExecStart=/usr/bin/cog --bg-color=#000000 http://127.0.0.1:8080
 Restart=always
 RestartSec=3
