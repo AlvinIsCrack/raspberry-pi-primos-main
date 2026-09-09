@@ -50,7 +50,7 @@
             class="relative w-full h-8 rounded bg-background border overflow-hidden"
         >
             <div
-                class="h-full bg-neutral-200"
+                class="h-full bg-primary"
                 style="width: {progressPercent}%"
             ></div>
 
@@ -65,7 +65,7 @@
         <div
             class="flex w-full items-center justify-between text-base text-neutral-400 font-mono"
         >
-            <span class="tracking-tight text-neutral-400">
+            <span class="tracking-tight text-muted-content">
                 <span>{label}</span>
                 {#if currentSchedule.block}
                     {@const { firstIndex, secondIndex } = currentSchedule.block}
@@ -74,15 +74,17 @@
                     <span class="inline-flex items-center tracking-wide"
                         ><span
                             class:font-bold={active === 1}
-                            class:text-white={active === 1}>{firstIndex}</span
+                            class:text-foreground={active === 1}
+                            >{firstIndex}</span
                         >-<span
                             class:font-bold={active === 2}
-                            class:text-white={active === 2}>{secondIndex}</span
+                            class:text-foreground={active === 2}
+                            >{secondIndex}</span
                         ></span
                     >
                 {/if}
             </span>
-            <span class="text-neutral-500 text-base">
+            <span class="text-muted-content text-base">
                 {timeRange}
             </span>
         </div>
