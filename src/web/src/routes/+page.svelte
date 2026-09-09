@@ -6,16 +6,19 @@
 
     let AcademicProgress = $state<Component | null>(null);
     let SensorsWidget = $state<Component | null>(null);
+    let InfoTicker = $state<Component | null>(null);
 
     onMount(() => {
         (async () => {
-            const [sensorsModule, academicModule] = await Promise.all([
-                import("$lib/components/widgets/SensorsWidget.svelte"),
-                import("$lib/components/widgets/AcademicProgress.svelte"),
-            ]);
-
+            const [sensorsModule, academicModule, tickerModule] =
+                await Promise.all([
+                    import("$lib/components/widgets/SensorsWidget.svelte"),
+                    import("$lib/components/widgets/AcademicProgress.svelte"),
+                    import("$lib/components/widgets/InfoTicker.svelte"),
+                ]);
             SensorsWidget = sensorsModule.default;
             AcademicProgress = academicModule.default;
+            InfoTicker = tickerModule.default;
 
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
@@ -36,6 +39,11 @@
     {#if SensorsWidget}
         <SensorsWidget />
     {/if}
+
+    {#if InfoTicker}
+        <InfoTicker />
+    {/if}
+
     <div class="flex flex-col items-center justify-center">
         <Clock />
         {#if AcademicProgress}
