@@ -1,6 +1,9 @@
 <script lang="ts">
     import { RoomService } from "$lib/core/services/room.service";
-    import type { RoomCollection } from "$lib/core/domain/room";
+    import {
+        formatDoorStateLabel,
+        type RoomCollection,
+    } from "$lib/core/domain/room";
 
     const roomService = new RoomService();
     let rooms = $state<RoomCollection>({});
@@ -46,19 +49,18 @@
                 No hay sensores registrados
             </p>
         {:else}
-            <ul class="flex flex-col gap-1.5">
+            <ul class="flex flex-col gap-1.5 text-2xl">
                 {#each roomList as room (room.id)}
                     <li
                         class="relative overflow-hidden flex items-center justify-between gap-3 rounded px-4 py-2 border border-border/60"
                     >
-                        <div class="flex items-center text-2xl gap-2">
-                            {#if room.door === "UNKNOWN"}
-                                <span
-                                    class="-mx-1 font-bold text-xl tracking-tighter text-warning animate-blink"
-                                >
-                                    *
-                                </span>
-                            {/if}
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="w-1/3 bg-muted opacity-50 h-full absolute left-0 -z-10"
+                                class:bg-warning={room.door === "UNKNOWN"}
+                                class:bg-primary={room.door === "ABR"}
+                                class:bg-secondary={room.door === "CER"}
+                            ></div>
 
                             <span class="font-mono font-bold text-neutral-200">
                                 {room.id}
@@ -66,21 +68,21 @@
 
                             {#if activityTicks[room.id]}
                                 {#key activityTicks[room.id]}
-                                    <span
-                                        class="activity-dot inline-block size-1.5 rounded-full bg-foreground"
-                                    ></span>
+                                    <div
+                                        class="activity-indicator bg-foreground absolute left-0 h-full w-1"
+                                    ></div>
                                 {/key}
                             {/if}
                         </div>
                         <div class="flex items-center gap-2">
                             <span
-                                class="text-xl font-medium tracking-wide uppercase"
+                                class="font-medium tracking-wide uppercase"
                                 class:text-primary={room.door === "ABR"}
                                 class:text-secondary={room.door === "CER"}
                                 class:text-warning={room.door === "UNKNOWN"}
                                 class:animate-blink={room.door === "UNKNOWN"}
                             >
-                                {room.door === "UNKNOWN" ? "N/A" : room.door}
+                                {formatDoorStateLabel(room.door)}
                             </span>
                         </div>
                     </li>
@@ -100,7 +102,7 @@
         }
     }
 
-    .activity-dot {
-        animation: fadeOut 5s ease-out forwards;
+    .activity-indicator {
+        animation: fadeOut 2s linear forwards;
     }
 </style>
