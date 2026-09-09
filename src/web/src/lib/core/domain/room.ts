@@ -8,3 +8,9 @@ export interface RoomSnapshot {
 }
 
 export type RoomCollection = Record<string, RoomSnapshot>;
+
+export function formatDoorStateLabel(door: RoomSnapshot['door']): string {
+    if (door === 'ABR') return 'O';
+    if (door === 'CER') return 'X';
+    return 'N/A';
+}
