@@ -1,4 +1,4 @@
-export type DoorState = 'OPEN' | 'CLOSED' | 'UNKNOWN';
+export type DoorState = 'ABR' | 'CER' | 'UNKNOWN';
 
 export interface RoomSnapshot {
     id: string;
