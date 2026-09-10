@@ -24,11 +24,10 @@ Environment=XDG_RUNTIME_DIR=/run/kiosk
 Environment=WPE_COG_PLATFORM=drm
 Environment=COG_PLATFORM_FDO_VIEW_BACKEND=drm
 Environment=NO_AT_BRIDGE=1
+Environment=AT_SPI_CLIENT=0
 Environment=WEBKIT_FORCE_SANDBOX=0
 
-# Optimizaciones clave para CPU ARMv6 mononúcleo y 512 MB RAM
-Environment=WEBKIT_FORCE_COMPOSITING_MODE=1
-Environment=JSC_maxPerThreadStack=524288
+# Renderizado estable para ARMv6
 Environment=WEBKIT_NICOSIA_PAINTING_THREADS=1
 
 # Prioridad de CPU para evitar microtirones de renderizado
