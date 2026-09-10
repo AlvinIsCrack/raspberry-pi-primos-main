@@ -31,9 +31,14 @@ bool bootstrap_run_sequence(bool isColdBoot, const NetworkCache &cache)
         fastConfigPtr = &fastConfig;
     }
 
+    const char *username = Config::Wifi::EnterpriseEnabled ? Config::Wifi::EnterpriseUsername : nullptr;
+    const char *identity = Config::Wifi::EnterpriseEnabled ? Config::Wifi::EnterpriseIdentity : nullptr;
+
     if (!wifi_connect_resilient(
             Config::Wifi::Ssid,
             Config::Wifi::Password,
+            username,
+            identity,
             fastConfigPtr,
             Config::Wifi::FastConnectTimeoutMs,
             Config::Wifi::FallbackTimeoutMs))

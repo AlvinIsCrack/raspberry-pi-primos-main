@@ -11,6 +11,13 @@ namespace Config
         inline constexpr const char *Ssid = "fh_fa38f8_";
         inline constexpr const char *Password = "wlan05c707";
 
+        /** Set true to enable WPA2 802.1X PEAP/MSCHAPv2 authentication (e.g., eduroam). */
+        inline constexpr bool EnterpriseEnabled = false;
+        /** Identity / Username for 802.1X authentication; leave nullptr for standard WPA2-PSK. */
+        inline constexpr const char *EnterpriseUsername = nullptr;
+        /** Anonymous outer identity for PEAP tunneling; leave nullptr or empty to reuse username. */
+        inline constexpr const char *EnterpriseIdentity = nullptr;
+
         inline constexpr uint32_t FastConnectTimeoutMs = 2000;
         inline constexpr uint32_t FallbackTimeoutMs = 5000;
     }

@@ -25,15 +25,20 @@ struct WifiSessionInfo
 /**
  * @brief Establishes a link with an opportunistic fast-path strategy and guaranteed fallback.
  * @param ssid Target service set identifier.
- * @param password Network access passphrase.
+ * @param password Network access passphrase or user account password.
+ * @param username Optional username for WPA2-Enterprise (PEAP/MSCHAPv2). Pass nullptr for WPA2-PSK.
+ * @param identity Optional anonymous outer identity for PEAP phase 1. Pass nullptr to inherit username.
  * @param fastPathConfig Optional pointer to cached session parameters.
- * @param timeoutMs Maximum allowable connection window across all fallback attempts.
+ * @param fastTimeoutMs Maximum allowable connection window for fast channel/BSSID lock.
+ * @param fallbackTimeoutMs Maximum allowable connection window for full broadcast negotiation.
  * @return True if station successfully acquired network access.
  */
 bool wifi_connect_resilient(
     const char *ssid,
     const char *password,
-    const WifiSessionInfo *fastPathConfig,
+    const char *username = nullptr,
+    const char *identity = nullptr,
+    const WifiSessionInfo *fastPathConfig = nullptr,
     uint32_t fastTimeoutMs = 1200,
     uint32_t fallbackTimeoutMs = 4500);
 
