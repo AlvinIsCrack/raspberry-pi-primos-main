@@ -23,16 +23,16 @@ func GetCurrentEnergyPolicy() int {
 		return PolicyUltraEnergySaver
 	}
 
-	// Madrugada / Noche profunda (23:00 a 06:59) -> Ultra Energy Saver
+	// Madrugada / Noche profunda -> Ultra Energy Saver
 	if hour >= 23 || hour < 7 {
 		return PolicyUltraEnergySaver
 	}
 
-	// Tarde / Noche (20:00 a 22:59) -> Energy Saver
-	if hour >= 20 && hour < 23 {
+	// Tarde / Noche -> Energy Saver
+	if hour >= 18 && hour < 23 {
 		return PolicyEnergySaver
 	}
 
-	// Horario laboral activo (07:00 a 19:59) -> Defecto
+	// Horario laboral activo -> Defecto
 	return PolicyDefault
 }
