@@ -9,7 +9,7 @@ export const BLOCK_INTERMISSION_DURATION_MINUTES = 15;
 export const MODULE_TOTAL_DURATION_MINUTES = (BLOCK_DURATION_MINUTES * 2) + BLOCK_INTERMISSION_DURATION_MINUTES; // 85 min
 
 export const LUNCH_START_MINUTES = 13 * 60 + 40; // 13:40 -> 820 min
-export const LUNCH_END_MINUTES = 14 * 60 + 30;   // 14:30 -> 870 min
+export const LUNCH_END_MINUTES = 14 * 60 + 40;   // 14:40 -> 880 min
 
 export const DAY_START_HOUR = 8;
 export const DAY_START_MINUTE = 15;
@@ -62,7 +62,12 @@ export function buildStandardBlocks(): AcademicBlock[] {
             endMin: endCursor % 60
         });
 
-        cursor = endCursor + BLOCK_INTERMISSION_DURATION_MINUTES;
+        // Si el bloque termina justo donde empieza el almuerzo, no hay receso de 15 min
+        if (endCursor === LUNCH_START_MINUTES) {
+            cursor = LUNCH_END_MINUTES;
+        } else {
+            cursor = endCursor + BLOCK_INTERMISSION_DURATION_MINUTES;
+        }
     }
 
     return blocks;
@@ -88,7 +93,12 @@ export function getCurrentAcademicSchedule(date: Date = new Date()): CurrentSche
         const block = STANDARD_BLOCKS[i];
         const moduleStart = block.startHour * 60 + block.startMin;
         const lectureEnd = block.endHour * 60 + block.endMin;
-        const moduleEnd = lectureEnd + BLOCK_INTERMISSION_DURATION_MINUTES; // Fin del módulo completo con receso
+
+        // Si el bloque termina a la hora de almuerzo, no tiene intermisión posterior
+        const hasIntermission = lectureEnd !== LUNCH_START_MINUTES;
+        const moduleEnd = hasIntermission
+            ? lectureEnd + BLOCK_INTERMISSION_DURATION_MINUTES
+            : lectureEnd;
 
         // ¿Está dentro del módulo (clases o su posterior descanso)?
         if (isWithinMinutesRange(current, moduleStart, moduleEnd, { inclusiveStart: true, inclusiveEnd: false })) {
@@ -105,7 +115,7 @@ export function getCurrentAcademicSchedule(date: Date = new Date()): CurrentSche
                     block,
                     activeSubBlock,
                     progress,
-                    minutesRange
+                    minutesRange: [moduleStart, lectureEnd]
                 };
             }
 
