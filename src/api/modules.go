@@ -2,7 +2,7 @@ package api
 
 import (
 	apiHttp "primos/api/http"
-	apiMqtt "primos/api/mqtt"
+	apiUdp "primos/api/udp"
 	"primos/services"
 )
 
@@ -11,8 +11,13 @@ type AppServices struct {
 	RoomsLock *services.RoomsLockService
 }
 
-// BuildDefaultRouter wires HTTP, MQTT, and real-time streaming modules.
-func BuildDefaultRouter(svcs AppServices) *Router {
+type Endpoints struct {
+	Router        *Router
+	UDPController *apiUdp.RoomsUDPController
+}
+
+// BuildEndpoints wires HTTP, UDP, and real-time streaming modules.
+func BuildEndpoints(svcs AppServices) Endpoints {
 	router := NewRouter()
 	sseHub := apiHttp.NewSSEHub()
 
@@ -21,9 +26,10 @@ func BuildDefaultRouter(svcs AppServices) *Router {
 		apiHttp.NewSystemHandler(),
 	)
 
-	router.AttachMQTT(
-		apiMqtt.NewRoomsController(svcs.RoomsLock, sseHub),
-	)
+	udpCtrl := apiUdp.NewRoomsUDPController(svcs.RoomsLock, sseHub)
 
-	return router
+	return Endpoints{
+		Router:        router,
+		UDPController: udpCtrl,
+	}
 }

@@ -75,8 +75,14 @@ func (h *RoomsHandler) handleRoomByID(w http.ResponseWriter, r *http.Request) {
 			h.hub.Broadcast("room_updated", snapshot)
 		}
 
+		// Retornar setup mode al cliente HTTP
+		policy := services.GetCurrentEnergyPolicy()
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"telemetry_registered"}`))
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "telemetry_registered",
+			"setup":  policy, // 1, 2 o 3
+		})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

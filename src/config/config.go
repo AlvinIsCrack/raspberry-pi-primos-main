@@ -9,14 +9,14 @@ import (
 const (
 	DefaultTimezone = "America/Santiago"
 	DefaultHTTPAddr = ":8080"
-	DefaultMQTTAddr = ":1883"
+	DefaultUDPAddr  = ":1884"
 )
 
 // AppConfig almacena los ajustes globales de la aplicación.
 type AppConfig struct {
 	Timezone string
 	HTTPAddr string
-	MQTTAddr string
+	UDPAddr  string
 	Location *time.Location
 }
 
@@ -24,7 +24,7 @@ type AppConfig struct {
 func Load() (*AppConfig, error) {
 	tz := getEnv("APP_TIMEZONE", DefaultTimezone)
 	httpAddr := getEnv("HTTP_ADDR", DefaultHTTPAddr)
-	mqttAddr := getEnv("MQTT_ADDR", DefaultMQTTAddr)
+	udpAddr := getEnv("UDP_ADDR", DefaultUDPAddr)
 
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
@@ -38,7 +38,7 @@ func Load() (*AppConfig, error) {
 	return &AppConfig{
 		Timezone: tz,
 		HTTPAddr: httpAddr,
-		MQTTAddr: mqttAddr,
+		UDPAddr:  udpAddr,
 		Location: loc,
 	}, nil
 }

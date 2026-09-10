@@ -16,7 +16,6 @@ import (
 
 	"primos/api"
 	"primos/config"
-	"primos/core"
 	"primos/services"
 )
 
@@ -43,21 +42,18 @@ func main() {
 
 	lockService := services.NewRoomsLockService()
 
-	apiRouter := api.BuildDefaultRouter(api.AppServices{
+	endpoints := api.BuildEndpoints(api.AppServices{
 		RoomsLock: lockService,
 	})
 
-	mqttBroker := core.NewMQTTBroker(cfg.MQTTAddr)
-	apiRouter.RegisterMQTTRoutes(mqttBroker)
-
-	go func() {
-		if err := mqttBroker.Start(); err != nil {
-			fmt.Fprintf(os.Stderr, "MQTT Server error: %v\n", err)
-		}
-	}()
+	// Iniciar servidor UDP para sensores
+	if err := endpoints.UDPController.Start(cfg.UDPAddr); err != nil {
+		fmt.Fprintf(os.Stderr, "Fatal UDP Server error: %v\n", err)
+		os.Exit(1)
+	}
 
 	httpMux := http.NewServeMux()
-	apiRouter.RegisterHTTPRoutes(httpMux)
+	endpoints.Router.RegisterHTTPRoutes(httpMux)
 
 	buildSubtree, subErr := fs.Sub(embeddedWebAssets, webAssetsDir)
 	if subErr != nil {
@@ -102,5 +98,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "HTTP graceful shutdown failed: %v\n", err)
 	}
 
-	mqttBroker.Stop()
+	endpoints.UDPController.Close()
 }
