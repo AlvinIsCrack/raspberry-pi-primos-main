@@ -18,6 +18,7 @@ func BuildDefaultRouter(svcs AppServices) *Router {
 
 	router.AttachHTTP(
 		apiHttp.NewRoomsHandler(svcs.RoomsLock, sseHub),
+		apiHttp.NewSystemHandler(),
 	)
 
 	router.AttachMQTT(
