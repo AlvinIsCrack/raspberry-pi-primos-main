@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,6 +29,10 @@ const (
 	shutdownTimeout  = 5 * time.Second
 	provisionTimeout = 5 * time.Minute
 )
+
+func init() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+}
 
 func main() {
 	cfg, err := config.Load()

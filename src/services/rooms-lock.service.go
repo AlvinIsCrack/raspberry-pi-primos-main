@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -90,6 +91,7 @@ func (s *RoomsLockService) ReportTelemetry(roomID string, report domain.Telemetr
 		return errors.New("el ID del cuarto debe tener exactamente 3 caracteres")
 	}
 	if err := report.Validate(); err != nil {
+		slog.Warn("telemetry validation failed", "room_id", roomID, "error", err)
 		return fmt.Errorf("validación de telemetría falló: %w", err)
 	}
 
@@ -103,6 +105,14 @@ func (s *RoomsLockService) ReportTelemetry(roomID string, report domain.Telemetr
 		IsExplicitOff: false,
 		ShutdownNote:  "",
 	}
+
+	slog.Info("telemetry updated",
+		"room_id", roomID,
+		"door", report.Door,
+		"battery", report.BatteryLevel,
+		"charging", report.IsCharging,
+	)
+
 	return nil
 }
 
@@ -114,6 +124,7 @@ func (s *RoomsLockService) ReportShutdown(roomID string, reason string) error {
 
 	device, exists := s.devices[roomID]
 	if !exists {
+		slog.Warn("sensor shutdown ignored: unregistered", "room_id", roomID)
 		return errors.New("sensor no registrado")
 	}
 
@@ -122,6 +133,7 @@ func (s *RoomsLockService) ReportShutdown(roomID string, reason string) error {
 	device.LastReport = ResetTelemetry()
 	s.devices[roomID] = device
 
+	slog.Info("sensor shutdown recorded", "room_id", roomID, "reason", reason)
 	return nil
 }
 
