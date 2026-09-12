@@ -19,10 +19,13 @@ StandardError=journal
 RuntimeDirectory=kiosk
 RuntimeDirectoryMode=0700
 
-# Variables de plataforma DRM y sistema
-Environment=XDG_RUNTIME_DIR=/run/kiosk
-Environment=WPE_COG_PLATFORM=drm
+# Display & DRM Backend Configuration
 Environment=COG_PLATFORM_FDO_VIEW_BACKEND=drm
+Environment=COG_PLATFORM_DRM_MODE=1280x720@50
+Environment=WPE_BCM_VK_WIDTH=1280
+Environment=WPE_BCM_VK_HEIGHT=720
+
+# Sandboxing & Accessibility Overrides
 Environment=NO_AT_BRIDGE=1
 Environment=AT_SPI_CLIENT=0
 Environment=WEBKIT_FORCE_SANDBOX=0
