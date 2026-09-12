@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"embed"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -31,24 +30,33 @@ func init() {
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Fatal configuration error: %v\n", err)
+		slog.Error("fatal configuration error", "error", err)
 		os.Exit(1)
 	}
 
 	// Inicializar la aplicación centralizada
-	application := app.New(cfg, embeddedWebAssets, webAssetsDir)
+	application, err := app.New(cfg, embeddedWebAssets, webAssetsDir)
+	if err != nil {
+		slog.Error("application failed to initialize", "error", err)
+		os.Exit(1)
+	}
 	if err := application.Start(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		slog.Error("application failed to start", "error", err)
 		os.Exit(1)
 	}
 
 	// Esperar señal de apagado
 	shutdownSig := make(chan os.Signal, 1)
 	signal.Notify(shutdownSig, os.Interrupt, syscall.SIGTERM)
-	<-shutdownSig
+	sig := <-shutdownSig
+	slog.Info("shutdown signal received", "signal", sig.String())
 
 	// Apagado grácil
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	application.Shutdown(ctx)
+	if err := application.Shutdown(ctx); err != nil {
+		slog.Error("application graceful shutdown encountered errors", "error", err)
+	} else {
+		slog.Info("application shutdown completed successfully")
+	}
 }
