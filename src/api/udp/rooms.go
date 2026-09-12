@@ -1,10 +1,11 @@
 package udp
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net"
-	"strings"
+	"time"
 
 	"primos/api/http"
 	"primos/domain"
@@ -75,7 +76,13 @@ func (c *RoomsUDPController) listenLoop() {
 			continue
 		}
 
-		roomID := strings.ToUpper(string(buf[1:4]))
+		for i := 1; i <= 3; i++ {
+			if buf[i] >= 'a' && buf[i] <= 'z' {
+				buf[i] -= 32
+			}
+		}
+		roomID := string(buf[1:4])
+
 		doorRaw := buf[4]
 
 		var doorState domain.DoorState
@@ -85,11 +92,14 @@ func (c *RoomsUDPController) listenLoop() {
 			doorState = domain.DoorClosed
 		}
 
-		_ = c.lockService.ProcessTelemetry(roomID, domain.TelemetryPayload{
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		_ = c.lockService.ProcessTelemetry(ctx, roomID, domain.TelemetryPayload{
 			Door: doorState,
 		}, "udp_datagram")
 
-		if snapshot, exists := c.lockService.GetSnapshot(roomID); exists {
+		if snapshot, exists := c.lockService.GetSnapshot(ctx, roomID); exists {
 			c.hub.Broadcast("room_updated", snapshot)
 		}
 

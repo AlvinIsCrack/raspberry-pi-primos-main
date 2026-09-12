@@ -1,67 +1,33 @@
 package services
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"log/slog"
-	"sort"
-	"sync"
 	"time"
 
 	"primos/domain"
 )
 
-// SensorDevice mantiene el estado interno y telemetría de un nodo IoT.
-type SensorDevice struct {
-	RoomID        string
-	LastReport    domain.TelemetryReport
-	LastSeenAt    time.Time
-	IsExplicitOff bool
-	ShutdownNote  string
-}
-
-// RoomsLockService gestiona la telemetría y ciclo de vida de los sensores de salas.
+// RoomsLockService orquesta la ingestión de telemetría y consultas.
 type RoomsLockService struct {
-	mu      sync.RWMutex
-	devices map[string]SensorDevice
+	repo domain.DeviceRepository
 }
 
-// NewRoomsLockService inicializa el servicio con los cuartos por defecto.
-func NewRoomsLockService() *RoomsLockService {
-	s := &RoomsLockService{
-		devices: make(map[string]SensorDevice),
+// NewRoomsLockService inicializa el servicio. Si repo es nil, utiliza
+// automáticamente el repositorio en memoria precargado con "LDS" y "OFI".
+func NewRoomsLockService(repo domain.DeviceRepository) *RoomsLockService {
+	if repo == nil {
+		panic("device repository is required")
 	}
-
-	// Sensores predeterminados
-	for _, id := range []string{"LDS", "OFI"} {
-		s.devices[id] = SensorDevice{
-			RoomID: id,
-			LastReport: domain.TelemetryReport{
-				Door:         domain.DoorUnknown,
-				BatteryLevel: -1,
-			},
-			LastSeenAt:    time.Time{},
-			IsExplicitOff: true,
-			ShutdownNote:  "Inicialización por defecto",
-		}
-	}
-
-	return s
+	return &RoomsLockService{repo: repo}
 }
 
-// ResetTelemetry retorna un reporte limpio en estado desconocido y sin métricas.
-func ResetTelemetry() domain.TelemetryReport {
-	return domain.TelemetryReport{
-		Door:         domain.DoorUnknown,
-		BatteryLevel: -1,
-		IsCharging:   false,
-		RSSI:         0,
-	}
-}
-
-func (s *RoomsLockService) ProcessTelemetry(roomID string, payload domain.TelemetryPayload, defaultShutdownReason string) error {
-	if len(roomID) != 3 {
-		return errors.New("el ID del cuarto debe tener exactamente 3 caracteres")
+// ProcessTelemetry resuelve y canaliza la telemetría entrante hacia apagado o actualización regular.
+func (s *RoomsLockService) ProcessTelemetry(ctx context.Context, rawRoomID string, payload domain.TelemetryPayload, defaultShutdownReason string) error {
+	roomID, err := domain.NewRoomID(rawRoomID)
+	if err != nil {
+		return err
 	}
 
 	if payload.Shutdown || payload.Door == domain.DoorUnknown {
@@ -69,7 +35,7 @@ func (s *RoomsLockService) ProcessTelemetry(roomID string, payload domain.Teleme
 		if reason == "" {
 			reason = defaultShutdownReason
 		}
-		return s.ReportShutdown(roomID, reason)
+		return s.ReportShutdown(ctx, roomID, reason)
 	}
 
 	battery := -1
@@ -77,73 +43,67 @@ func (s *RoomsLockService) ProcessTelemetry(roomID string, payload domain.Teleme
 		battery = *payload.BatteryLevel
 	}
 
-	return s.ReportTelemetry(roomID, domain.TelemetryReport{
+	return s.ReportTelemetry(ctx, roomID, domain.TelemetryReport{
 		Door:         payload.Door,
 		BatteryLevel: battery,
-		IsCharging:   payload.IsCharging,
-		RSSI:         payload.RSSI,
 	})
 }
 
-// ReportTelemetry procesa una ráfaga periódica de datos del sensor.
-func (s *RoomsLockService) ReportTelemetry(roomID string, report domain.TelemetryReport) error {
-	if len(roomID) != 3 {
-		return errors.New("el ID del cuarto debe tener exactamente 3 caracteres")
-	}
+// ReportTelemetry aplica métricas periódicas validadas únicamente a cuartos registrados.
+func (s *RoomsLockService) ReportTelemetry(ctx context.Context, roomID domain.RoomID, report domain.TelemetryReport) error {
 	if err := report.Validate(); err != nil {
 		slog.Warn("telemetry validation failed", "room_id", roomID, "error", err)
 		return fmt.Errorf("validación de telemetría falló: %w", err)
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Un solo viaje a la base de datos/memoria: Get valida la existencia de forma atómica
+	device, err := s.repo.Get(ctx, roomID)
+	if err != nil {
+		slog.Warn("telemetry rejected: room not found", "room_id", roomID, "error", err)
+		return err
+	}
 
-	s.devices[roomID] = SensorDevice{
-		RoomID:        roomID,
-		LastReport:    report,
-		LastSeenAt:    time.Now(),
-		IsExplicitOff: false,
-		ShutdownNote:  "",
+	device.ApplyTelemetry(report, time.Now())
+
+	if err := s.repo.Update(ctx, device); err != nil {
+		return fmt.Errorf("falló persistencia de telemetría: %w", err)
 	}
 
 	slog.Info("telemetry updated",
 		"room_id", roomID,
 		"door", report.Door,
 		"battery", report.BatteryLevel,
-		"charging", report.IsCharging,
 	)
-
 	return nil
 }
 
-// ReportShutdown atiende eventos LWT (Last Will and Testament) o apagado voluntario del sensor.
-// Fuerza el estado a desconocido de inmediato sin esperar el timeout de 5 minutos.
-func (s *RoomsLockService) ReportShutdown(roomID string, reason string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	device, exists := s.devices[roomID]
-	if !exists {
+// ReportShutdown gestiona el apagado explícito / LWT de un dispositivo existente.
+func (s *RoomsLockService) ReportShutdown(ctx context.Context, roomID domain.RoomID, reason string) error {
+	device, err := s.repo.Get(ctx, roomID)
+	if err != nil {
 		slog.Warn("sensor shutdown ignored: unregistered", "room_id", roomID)
-		return errors.New("sensor no registrado")
+		return err
 	}
 
-	device.IsExplicitOff = true
-	device.ShutdownNote = reason
-	device.LastReport = ResetTelemetry()
-	s.devices[roomID] = device
+	device.ApplyShutdown(reason)
+
+	if err := s.repo.Update(ctx, device); err != nil {
+		return fmt.Errorf("falló registro de shutdown: %w", err)
+	}
 
 	slog.Info("sensor shutdown recorded", "room_id", roomID, "reason", reason)
 	return nil
 }
 
-// GetSnapshot calcula el estado actual del dispositivo y valida si expiró la ventana de gracia.
-func (s *RoomsLockService) GetSnapshot(roomID string) (domain.SensorSnapshot, bool) {
-	s.mu.RLock()
-	device, exists := s.devices[roomID]
-	s.mu.RUnlock()
+// GetSnapshot retorna el estado instantáneo proyectado del cuarto.
+func (s *RoomsLockService) GetSnapshot(ctx context.Context, rawRoomID string) (domain.SensorSnapshot, bool) {
+	roomID, err := domain.NewRoomID(rawRoomID)
+	if err != nil {
+		return domain.SensorSnapshot{}, false
+	}
 
-	if !exists {
+	device, err := s.repo.Get(ctx, roomID)
+	if err != nil {
 		return domain.SensorSnapshot{
 			RoomID:       roomID,
 			Door:         domain.DoorUnknown,
@@ -152,46 +112,21 @@ func (s *RoomsLockService) GetSnapshot(roomID string) (domain.SensorSnapshot, bo
 		}, false
 	}
 
-	now := time.Now()
-	isExpired := now.Sub(device.LastSeenAt) > domain.HeartbeatGracePeriod
-	isOffline := device.IsExplicitOff || isExpired
-
-	doorState := device.LastReport.Door
-	connectivity := domain.StatusOnline
-	batteryLevel := device.LastReport.BatteryLevel
-
-	if isOffline || doorState == domain.DoorUnknown {
-		doorState = domain.DoorUnknown
-		connectivity = domain.StatusOffline
-		batteryLevel = -1
-	}
-
-	return domain.SensorSnapshot{
-		RoomID:       device.RoomID,
-		Door:         doorState,
-		Connectivity: connectivity,
-		BatteryLevel: batteryLevel,
-		LastSeenAt:   device.LastSeenAt,
-		IsStale:      isExpired,
-	}, true
+	return device.Snapshot(time.Now()), true
 }
 
-// GetAllSnapshots devuelve todos los snapshots calculados y ordenados por RoomID.
-func (s *RoomsLockService) GetAllSnapshots() []domain.SensorSnapshot {
-	s.mu.RLock()
-	ids := make([]string, 0, len(s.devices))
-	for id := range s.devices {
-		ids = append(ids, id)
-	}
-	s.mu.RUnlock()
-
-	sort.Strings(ids)
-
-	snapshots := make([]domain.SensorSnapshot, 0, len(ids))
-	for _, id := range ids {
-		snap, _ := s.GetSnapshot(id)
-		snapshots = append(snapshots, snap)
+// GetAllSnapshots devuelve la foto global del ecosistema ordenada de forma determinista.
+func (s *RoomsLockService) GetAllSnapshots(ctx context.Context) ([]domain.SensorSnapshot, error) {
+	devices, err := s.repo.GetAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error al listar snapshots: %w", err)
 	}
 
-	return snapshots
+	now := time.Now()
+	snapshots := make([]domain.SensorSnapshot, 0, len(devices))
+	for _, dev := range devices {
+		snapshots = append(snapshots, dev.Snapshot(now))
+	}
+
+	return snapshots, nil
 }

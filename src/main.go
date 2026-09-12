@@ -16,6 +16,8 @@ import (
 
 	"primos/api"
 	"primos/config"
+	"primos/db/repository/memory"
+	"primos/domain"
 	"primos/services"
 )
 
@@ -40,7 +42,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	lockService := services.NewRoomsLockService()
+	deviceRepository := memory.NewInMemoryDeviceRepository(
+		domain.RoomID("LDS"),
+		domain.RoomID("OFI"),
+	)
+	lockService := services.NewRoomsLockService(deviceRepository)
 
 	endpoints := api.BuildEndpoints(api.AppServices{
 		RoomsLock: lockService,

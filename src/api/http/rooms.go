@@ -36,7 +36,12 @@ func (h *RoomsHandler) handleRooms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snapshots := h.lockService.GetAllSnapshots()
+	snapshots, err := h.lockService.GetAllSnapshots(r.Context())
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(snapshots)
 }
@@ -50,14 +55,13 @@ func (h *RoomsHandler) handleRoomByID(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		snapshot, exists := h.lockService.GetSnapshot(roomID)
+		snapshot, exists := h.lockService.GetSnapshot(r.Context(), roomID)
 		if !exists {
 			http.Error(w, "Sensor not found", http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(snapshot)
-
 	case http.MethodPost:
 		var payload domain.TelemetryPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -65,13 +69,13 @@ func (h *RoomsHandler) handleRoomByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := h.lockService.ProcessTelemetry(roomID, payload, "http_request"); err != nil {
+		if err := h.lockService.ProcessTelemetry(r.Context(), roomID, payload, "http_request"); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		// Emit SSE update to UI
-		if snapshot, exists := h.lockService.GetSnapshot(roomID); exists {
+		if snapshot, exists := h.lockService.GetSnapshot(r.Context(), roomID); exists {
 			h.hub.Broadcast("room_updated", snapshot)
 		}
 
