@@ -1,11 +1,11 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 
 	"primos/config"
 	"primos/db/repository/memory"
-	"primos/domain"
 )
 
 // Container agrupa los servicios de negocio instanciados.
@@ -16,12 +16,12 @@ type Container struct {
 
 // Bootstrap construye todos los repositorios y servicios centrales en un solo paso.
 func Bootstrap(cfg *config.AppConfig) (*Container, error) {
-	// Repositorios
-	roomIDs := make([]domain.RoomID, len(cfg.Rooms))
-	for i, r := range cfg.Rooms {
-		roomIDs[i] = domain.RoomID(r)
+	if cfg == nil {
+		return nil, errors.New("config is required")
 	}
-	deviceRepo := memory.NewInMemoryDeviceRepository(roomIDs...)
+
+	// Repositorios: se pasan directamente las salas tipadas y validadas
+	deviceRepo := memory.NewInMemoryDeviceRepository(cfg.Rooms...)
 	scheduleRepo := memory.NewInMemoryScheduleRepository()
 
 	// Servicios
