@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"primos/domain"
-	"strings"
 	"time"
 )
 
@@ -52,29 +51,6 @@ func Load() (*AppConfig, error) {
 		Location: loc,
 		Rooms:    rooms,
 	}, nil
-}
-
-func parseRooms(raw string) ([]domain.RoomID, error) {
-	parts := strings.Split(raw, ",")
-	rooms := make([]domain.RoomID, 0, len(parts))
-
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if trimmed == "" {
-			continue
-		}
-		roomID, err := domain.NewRoomID(trimmed)
-		if err != nil {
-			return nil, fmt.Errorf("room %q: %w", trimmed, err)
-		}
-		rooms = append(rooms, roomID)
-	}
-
-	if len(rooms) == 0 {
-		return nil, fmt.Errorf("at least one room must be configured")
-	}
-
-	return rooms, nil
 }
 
 func getEnv(key, fallback string) string {
