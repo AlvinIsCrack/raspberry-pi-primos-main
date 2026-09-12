@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"net"
 	"net/http"
-	"os"
 
 	"primos/api"
 	"primos/config"
@@ -23,22 +24,29 @@ type App struct {
 
 // New crea e inicializa las dependencias centrales de la aplicación.
 func New(cfg *config.AppConfig, webAssets fs.FS, webAssetsDir string) (*App, error) {
+	slog.Info("initializing application components")
+
 	var roomIDs []domain.RoomID
 	for _, r := range config.Rooms {
 		roomIDs = append(roomIDs, domain.RoomID(r))
 	}
 	deviceRepository := memory.NewInMemoryDeviceRepository(roomIDs...)
+	slog.Info("in-memory repository initialized", "rooms_count", len(roomIDs))
+
 	lockService := services.NewRoomsLockService(deviceRepository)
 
 	endpoints := api.BuildEndpoints(api.AppServices{
 		RoomsLock: lockService,
 	})
+	slog.Info("api endpoints and controllers created")
 
 	httpMux := http.NewServeMux()
 	endpoints.Router.RegisterHTTPRoutes(httpMux)
+
 	if err := setupSPAFallback(httpMux, webAssets, webAssetsDir); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("setup spa fallback (%s): %w", webAssetsDir, err)
 	}
+	slog.Info("static assets and spa fallback registered", "dir", webAssetsDir)
 
 	return &App{
 		cfg:       cfg,
@@ -55,10 +63,18 @@ func (a *App) Start() error {
 	if err := a.endpoints.UDPController.Start(a.cfg.UDPAddr); err != nil {
 		return fmt.Errorf("fatal UDP Server error: %w", err)
 	}
+	slog.Info("udp server listening", "addr", a.cfg.UDPAddr)
+
+	ln, err := net.Listen("tcp", a.cfg.HTTPAddr)
+	if err != nil {
+		_ = a.endpoints.UDPController.Close()
+		return fmt.Errorf("http listen error on %s: %w", a.cfg.HTTPAddr, err)
+	}
+	slog.Info("http server listening", "addr", ln.Addr().String())
 
 	go func() {
-		if err := a.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintf(os.Stderr, "HTTP Server error: %v\n", err)
+		if err := a.httpServer.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("http server failed", "error", err, "addr", a.cfg.HTTPAddr)
 		}
 	}()
 
@@ -67,13 +83,22 @@ func (a *App) Start() error {
 
 // Shutdown detiene de forma ordenada los servidores HTTP y UDP.
 func (a *App) Shutdown(ctx context.Context) error {
+	slog.Info("shutting down application servers")
 	var errs []error
+
 	if err := a.httpServer.Shutdown(ctx); err != nil {
+		slog.Warn("http server graceful shutdown failed", "error", err)
 		errs = append(errs, fmt.Errorf("http shutdown: %w", err))
+	} else {
+		slog.Info("http server stopped")
 	}
 
 	if err := a.endpoints.UDPController.Close(); err != nil {
+		slog.Warn("udp controller close failed", "error", err)
 		errs = append(errs, fmt.Errorf("udp close: %w", err))
+	} else {
+		slog.Info("udp controller stopped")
 	}
+
 	return errors.Join(errs...)
 }
