@@ -13,6 +13,7 @@ import (
 var (
 	ErrNilScheduleRepository = errors.New("schedule repository is required")
 	ErrNilScheduleUpdater    = errors.New("schedule updater is required")
+	ErrNilScheduleStore      = errors.New("schedule store is required")
 )
 
 // RoomsScheduleService orquesta la consulta y sincronización de horarios de salas.
@@ -21,7 +22,7 @@ type RoomsScheduleService struct {
 	updater domain.ScheduleUpdater
 }
 
-// NewRoomsScheduleService inicializa el servicio validando sus dependencias sin panic.
+// NewRoomsScheduleService inicializa el servicio con contratos segregados de lectura y escritura.
 func NewRoomsScheduleService(reader domain.ScheduleRepository, updater domain.ScheduleUpdater) (*RoomsScheduleService, error) {
 	if reader == nil {
 		return nil, ErrNilScheduleRepository
@@ -33,6 +34,15 @@ func NewRoomsScheduleService(reader domain.ScheduleRepository, updater domain.Sc
 		reader:  reader,
 		updater: updater,
 	}, nil
+}
+
+// NewRoomsScheduleServiceFromStore es un constructor de conveniencia para adaptadores
+// que implementan tanto lectura como escritura (domain.ScheduleStore).
+func NewRoomsScheduleServiceFromStore(store domain.ScheduleStore) (*RoomsScheduleService, error) {
+	if store == nil {
+		return nil, ErrNilScheduleStore
+	}
+	return NewRoomsScheduleService(store, store)
 }
 
 // GetRoomScheduleStatus calcula la ocupación y la puerta deseada para un instante dado.

@@ -38,7 +38,7 @@ func New(cfg *config.AppConfig, webAssets fs.FS, webAssetsDir string) (*App, err
 
 	// Inicialización de Schedule
 	scheduleRepository := memory.NewInMemoryScheduleRepository()
-	scheduleService, err := services.NewRoomsScheduleService(scheduleRepository, scheduleRepository)
+	scheduleService, err := services.NewRoomsScheduleServiceFromStore(scheduleRepository)
 	if err != nil {
 		return nil, fmt.Errorf("schedule service initialization failed: %w", err)
 	}
