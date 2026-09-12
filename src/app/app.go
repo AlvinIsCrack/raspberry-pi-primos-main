@@ -6,108 +6,75 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
-	"net"
 	"net/http"
+	"time"
 
 	"primos/api"
 	"primos/config"
-	"primos/db/repository/memory"
-	"primos/domain"
 	"primos/services"
 )
 
 type App struct {
-	cfg        *config.AppConfig
-	httpServer *http.Server
-	endpoints  api.Endpoints
+	runners []ServiceRunner
 }
 
-// New crea e inicializa las dependencias centrales de la aplicación.
 func New(cfg *config.AppConfig, webAssets fs.FS, webAssetsDir string) (*App, error) {
-	slog.Info("initializing application components")
-
-	var roomIDs []domain.RoomID
-	for _, r := range config.Rooms {
-		roomIDs = append(roomIDs, domain.RoomID(r))
-	}
-
-	deviceRepository := memory.NewInMemoryDeviceRepository(roomIDs...)
-	slog.Info("in-memory repository initialized", "rooms_count", len(roomIDs))
-
-	lockService := services.NewRoomsLockService(deviceRepository)
-
-	// Inicialización de Schedule
-	scheduleRepository := memory.NewInMemoryScheduleRepository()
-	scheduleService, err := services.NewRoomsScheduleServiceFromStore(scheduleRepository)
+	// Inicialización unificada de dependencias de negocio
+	svcs, err := services.Bootstrap(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("schedule service initialization failed: %w", err)
+		return nil, fmt.Errorf("services bootstrap failed: %w", err)
 	}
-	slog.Info("schedule service initialized")
 
+	// Controladores y Mux
 	endpoints := api.BuildEndpoints(api.AppServices{
-		RoomsLock:     lockService,
-		RoomsSchedule: scheduleService,
+		RoomsLock:     svcs.RoomsLock,
+		RoomsSchedule: svcs.Schedule,
 	})
-	slog.Info("api endpoints and controllers created")
 
 	httpMux := http.NewServeMux()
 	endpoints.Router.RegisterHTTPRoutes(httpMux)
-
 	if err := setupSPAFallback(httpMux, webAssets, webAssetsDir); err != nil {
-		return nil, fmt.Errorf("setup spa fallback (%s): %w", webAssetsDir, err)
+		return nil, fmt.Errorf("setup spa fallback: %w", err)
 	}
-	slog.Info("static assets and spa fallback registered", "dir", webAssetsDir)
 
-	return &App{
-		cfg:       cfg,
-		endpoints: endpoints,
-		httpServer: &http.Server{
-			Addr:    cfg.HTTPAddr,
-			Handler: httpMux,
-		},
-	}, nil
+	// Declaración unificada de tareas ejecutables
+	runners := []ServiceRunner{
+		&UDPControllerRunner{ctrl: endpoints.UDPController, addr: cfg.UDPAddr},
+		&HTTPServerRunner{server: &http.Server{Addr: cfg.HTTPAddr, Handler: httpMux}, addr: cfg.HTTPAddr},
+	}
+
+	return &App{runners: runners}, nil
 }
 
-// Start levanta el servidor UDP y el servidor HTTP en segundo plano.
 func (a *App) Start() error {
-	if err := a.endpoints.UDPController.Start(a.cfg.UDPAddr); err != nil {
-		return fmt.Errorf("fatal UDP Server error: %w", err)
-	}
-	slog.Info("udp server listening", "addr", a.cfg.UDPAddr)
-
-	ln, err := net.Listen("tcp", a.cfg.HTTPAddr)
-	if err != nil {
-		_ = a.endpoints.UDPController.Close()
-		return fmt.Errorf("http listen error on %s: %w", a.cfg.HTTPAddr, err)
-	}
-	slog.Info("http server listening", "addr", ln.Addr().String())
-
-	go func() {
-		if err := a.httpServer.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("http server failed", "error", err, "addr", a.cfg.HTTPAddr)
+	for i, r := range a.runners {
+		if err := r.Start(); err != nil {
+			// Roll back previously started runners in reverse order
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			for j := i - 1; j >= 0; j-- {
+				_ = a.runners[j].Shutdown(shutdownCtx)
+			}
+			return fmt.Errorf("runner %s failed to start: %w", r.Name(), err)
 		}
-	}()
-
+		slog.Info("component started", "name", r.Name())
+	}
 	return nil
 }
 
-// Shutdown detiene de forma ordenada los servidores HTTP y UDP.
 func (a *App) Shutdown(ctx context.Context) error {
-	slog.Info("shutting down application servers")
+	slog.Info("initiating graceful shutdown")
 	var errs []error
 
-	if err := a.httpServer.Shutdown(ctx); err != nil {
-		slog.Warn("http server graceful shutdown failed", "error", err)
-		errs = append(errs, fmt.Errorf("http shutdown: %w", err))
-	} else {
-		slog.Info("http server stopped")
-	}
-
-	if err := a.endpoints.UDPController.Close(); err != nil {
-		slog.Warn("udp controller close failed", "error", err)
-		errs = append(errs, fmt.Errorf("udp close: %w", err))
-	} else {
-		slog.Info("udp controller stopped")
+	// Apagado en orden inverso al de encendido (LIFO)
+	for i := len(a.runners) - 1; i >= 0; i-- {
+		r := a.runners[i]
+		if err := r.Shutdown(ctx); err != nil {
+			slog.Warn("component shutdown encountered error", "name", r.Name(), "error", err)
+			errs = append(errs, fmt.Errorf("%s: %w", r.Name(), err))
+		} else {
+			slog.Info("component stopped", "name", r.Name())
+		}
 	}
 
 	return errors.Join(errs...)

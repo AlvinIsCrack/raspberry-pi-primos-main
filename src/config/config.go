@@ -12,16 +12,13 @@ const (
 	DefaultUDPAddr  = ":1884"
 )
 
-var (
-	Rooms = []string{"LPA", "OFI"}
-)
-
 // AppConfig almacena los ajustes globales de la aplicación.
 type AppConfig struct {
 	Timezone string
 	HTTPAddr string
 	UDPAddr  string
 	Location *time.Location
+	Rooms    []string
 }
 
 // Load lee las variables de entorno o aplica los valores predeterminados y sincroniza time.Local.
@@ -44,6 +41,7 @@ func Load() (*AppConfig, error) {
 		HTTPAddr: httpAddr,
 		UDPAddr:  udpAddr,
 		Location: loc,
+		Rooms:    []string{"LPA", "OFI"},
 	}, nil
 }
 
