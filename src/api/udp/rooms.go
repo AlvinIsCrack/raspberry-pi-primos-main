@@ -77,38 +77,41 @@ func (c *RoomsUDPController) listenLoop() {
 			continue
 		}
 
-		for i := 1; i <= 3; i++ {
-			if buf[i] >= 'a' && buf[i] <= 'z' {
-				buf[i] -= 32
-			}
-		}
-		roomID := string(buf[1:4])
-
-		doorRaw := buf[4]
-
-		var doorState domain.DoorState
-		if doorRaw == 1 {
-			doorState = domain.DoorOpen
-		} else {
-			doorState = domain.DoorClosed
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		_ = c.lockService.ProcessTelemetry(ctx, roomID, domain.TelemetryPayload{
-			Door: doorState,
-		}, "udp_datagram")
-
-		if snapshot, exists := c.lockService.GetSnapshot(ctx, roomID); exists {
-			c.hub.Broadcast("room_updated", snapshot)
-		}
-
-		// Responder al instante al sensor con el modo de setup actual (1 byte)
-		policy := uint8(services.GetCurrentEnergyPolicy())
-		response := []byte{0x5A, policy} // ACK 0x5A + Modo (1, 2 o 3)
-		_, _ = c.conn.WriteToUDP(response, remoteAddr)
-
-		slog.Debug("UDP packet processed", "room", roomID, "door", doorState, "policySent", policy)
+		c.handlePacket(buf[:n], remoteAddr)
 	}
+}
+
+func (c *RoomsUDPController) handlePacket(data []byte, remoteAddr *net.UDPAddr) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	for i := 1; i <= 3; i++ {
+		if data[i] >= 'a' && data[i] <= 'z' {
+			data[i] -= 32
+		}
+	}
+	roomID := string(data[1:4])
+
+	if _, exists := c.lockService.GetSnapshot(ctx, roomID); !exists {
+		slog.Warn("UDP telemetry dropped: unregistered room", "room", roomID)
+		return
+	}
+
+	doorState := domain.DoorClosed
+	if data[4] == 1 {
+		doorState = domain.DoorOpen
+	}
+
+	_ = c.lockService.ProcessTelemetry(ctx, roomID, domain.TelemetryPayload{
+		Door: doorState,
+	}, "udp_datagram")
+
+	if updatedSnapshot, exists := c.lockService.GetSnapshot(ctx, roomID); exists {
+		c.hub.Broadcast("room_updated", updatedSnapshot)
+	}
+
+	policy := uint8(services.GetCurrentEnergyPolicy())
+	response := []byte{0x5A, policy}
+	_, _ = c.conn.WriteToUDP(response, remoteAddr)
+	slog.Debug("UDP packet processed", "room", roomID, "door", doorState, "policySent", policy)
 }
