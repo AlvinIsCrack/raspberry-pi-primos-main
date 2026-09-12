@@ -30,10 +30,16 @@ func New(cfg *config.AppConfig, webAssets fs.FS, webAssetsDir string) (*App, err
 	for _, r := range config.Rooms {
 		roomIDs = append(roomIDs, domain.RoomID(r))
 	}
+
 	deviceRepository := memory.NewInMemoryDeviceRepository(roomIDs...)
+	scheduleRepo := memory.NewInMemoryScheduleRepository()
 	slog.Info("in-memory repository initialized", "rooms_count", len(roomIDs))
 
 	lockService := services.NewRoomsLockService(deviceRepository)
+	scheduleService, err := services.NewRoomsScheduleService(scheduleRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize schedule service: %w", err)
+	}
 
 	endpoints := api.BuildEndpoints(api.AppServices{
 		RoomsLock: lockService,
