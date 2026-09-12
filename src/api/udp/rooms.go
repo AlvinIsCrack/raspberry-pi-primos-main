@@ -54,10 +54,11 @@ func (c *RoomsUDPController) Start(addr string) error {
 	return nil
 }
 
-func (c *RoomsUDPController) Close() {
+func (c *RoomsUDPController) Close() error {
 	if c.conn != nil {
-		_ = c.conn.Close()
+		return c.conn.Close()
 	}
+	return nil
 }
 
 func (c *RoomsUDPController) listenLoop() {

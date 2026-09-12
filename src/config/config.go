@@ -12,6 +12,10 @@ const (
 	DefaultUDPAddr  = ":1884"
 )
 
+var (
+	Rooms = []string{"LPA", "OFI"}
+)
+
 // AppConfig almacena los ajustes globales de la aplicación.
 type AppConfig struct {
 	Timezone string

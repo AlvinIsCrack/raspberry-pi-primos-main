@@ -3,22 +3,15 @@ package main
 import (
 	"context"
 	"embed"
-	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"primos/api"
+	"primos/app"
 	"primos/config"
-	"primos/db/repository/memory"
-	"primos/domain"
-	"primos/services"
 )
 
 const webAssetsDir = "web/build"
@@ -42,67 +35,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	deviceRepository := memory.NewInMemoryDeviceRepository(
-		domain.RoomID("LDS"),
-		domain.RoomID("OFI"),
-	)
-	lockService := services.NewRoomsLockService(deviceRepository)
-
-	endpoints := api.BuildEndpoints(api.AppServices{
-		RoomsLock: lockService,
-	})
-
-	// Iniciar servidor UDP para sensores
-	if err := endpoints.UDPController.Start(cfg.UDPAddr); err != nil {
-		fmt.Fprintf(os.Stderr, "Fatal UDP Server error: %v\n", err)
+	// Inicializar la aplicación centralizada
+	application := app.New(cfg, embeddedWebAssets, webAssetsDir)
+	if err := application.Start(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	httpMux := http.NewServeMux()
-	endpoints.Router.RegisterHTTPRoutes(httpMux)
-
-	buildSubtree, subErr := fs.Sub(embeddedWebAssets, webAssetsDir)
-	if subErr != nil {
-		fmt.Fprintf(os.Stderr, "Static assets initialization failed: %v\n", subErr)
-		os.Exit(1)
-	}
-
-	// SPA fallback file server ensuring index.html availability
-	fileServer := http.FileServer(http.FS(buildSubtree))
-	httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		if path == "" {
-			path = "index.html"
-		}
-
-		stat, err := fs.Stat(buildSubtree, path)
-		if errors.Is(err, fs.ErrNotExist) || (err == nil && stat.IsDir()) {
-			r.URL.Path = "/"
-		}
-		fileServer.ServeHTTP(w, r)
-	})
-
-	httpServer := &http.Server{
-		Addr:    cfg.HTTPAddr,
-		Handler: httpMux,
-	}
-
-	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintf(os.Stderr, "HTTP Server error: %v\n", err)
-		}
-	}()
-
+	// Esperar señal de apagado
 	shutdownSig := make(chan os.Signal, 1)
 	signal.Notify(shutdownSig, os.Interrupt, syscall.SIGTERM)
 	<-shutdownSig
 
+	// Apagado grácil
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-
-	if err := httpServer.Shutdown(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "HTTP graceful shutdown failed: %v\n", err)
-	}
-
-	endpoints.UDPController.Close()
+	application.Shutdown(ctx)
 }
