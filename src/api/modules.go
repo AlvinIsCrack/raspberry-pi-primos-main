@@ -6,9 +6,10 @@ import (
 	"primos/services"
 )
 
-// AppServices aggregates the domain services needed across controllers.
+// AppServices agrega los servicios de dominio necesarios a través de los controladores.
 type AppServices struct {
-	RoomsLock *services.RoomsLockService
+	RoomsLock     *services.RoomsLockService
+	RoomsSchedule *services.RoomsScheduleService
 }
 
 type Endpoints struct {
@@ -16,7 +17,7 @@ type Endpoints struct {
 	UDPController *apiUdp.RoomsUDPController
 }
 
-// BuildEndpoints wires HTTP, UDP, and real-time streaming modules.
+// BuildEndpoints conecta módulos HTTP, UDP y transmisión en tiempo real.
 func BuildEndpoints(svcs AppServices) Endpoints {
 	router := NewRouter()
 	sseHub := apiHttp.NewSSEHub()

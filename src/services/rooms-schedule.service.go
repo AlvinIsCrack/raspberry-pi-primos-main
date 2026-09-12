@@ -11,20 +11,28 @@ import (
 )
 
 var (
-	ErrNilScheduleStore = errors.New("schedule store is required")
+	ErrNilScheduleRepository = errors.New("schedule repository is required")
+	ErrNilScheduleUpdater    = errors.New("schedule updater is required")
 )
 
 // RoomsScheduleService orquesta la consulta y sincronización de horarios de salas.
 type RoomsScheduleService struct {
-	store domain.ScheduleStore
+	reader  domain.ScheduleRepository
+	updater domain.ScheduleUpdater
 }
 
-// NewRoomsScheduleService inicializa el servicio validando sus dependencias sin recurrir a panic.
-func NewRoomsScheduleService(store domain.ScheduleStore) (*RoomsScheduleService, error) {
-	if store == nil {
-		return nil, ErrNilScheduleStore
+// NewRoomsScheduleService inicializa el servicio validando sus dependencias sin panic.
+func NewRoomsScheduleService(reader domain.ScheduleRepository, updater domain.ScheduleUpdater) (*RoomsScheduleService, error) {
+	if reader == nil {
+		return nil, ErrNilScheduleRepository
 	}
-	return &RoomsScheduleService{store: store}, nil
+	if updater == nil {
+		return nil, ErrNilScheduleUpdater
+	}
+	return &RoomsScheduleService{
+		reader:  reader,
+		updater: updater,
+	}, nil
 }
 
 // GetRoomScheduleStatus calcula la ocupación y la puerta deseada para un instante dado.
@@ -34,11 +42,10 @@ func (s *RoomsScheduleService) GetRoomScheduleStatus(ctx context.Context, rawRoo
 		return domain.RoomScheduleStatus{}, err
 	}
 
-	// Ventana segura: 24h atrás para eventos continuos extensos y 24h adelante para detectar el siguiente bloque.
 	from := now.Add(-24 * time.Hour)
 	to := now.Add(24 * time.Hour)
 
-	events, err := s.store.GetEventsForRoom(ctx, roomID, from, to)
+	events, err := s.reader.GetEventsForRoom(ctx, roomID, from, to)
 	if err != nil {
 		slog.Error("failed to retrieve room schedule events", "room_id", roomID, "error", err)
 		return domain.RoomScheduleStatus{}, fmt.Errorf("retrieve room events failed: %w", err)
@@ -54,7 +61,7 @@ func (s *RoomsScheduleService) SyncRoomEvents(ctx context.Context, rawRoomID str
 		return err
 	}
 
-	if err := s.store.SetEvents(ctx, roomID, events); err != nil {
+	if err := s.updater.SetEvents(ctx, roomID, events); err != nil {
 		slog.Error("failed to set room schedule events", "room_id", roomID, "error", err)
 		return fmt.Errorf("persist room events failed: %w", err)
 	}

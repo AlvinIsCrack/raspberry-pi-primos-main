@@ -57,20 +57,20 @@ func EvaluateRoomSchedule(roomID RoomID, events []ScheduleEvent, now time.Time) 
 	var next *ScheduleEvent
 
 	for i := range events {
-		ev := &events[i]
+		ev := events[i]
 
 		if ev.IsActive(now) {
-			// Si hay eventos solapados, priorizar el que termine más tarde
 			if active == nil || ev.EndTime.After(active.EndTime) {
-				active = ev
+				copied := ev
+				active = &copied
 			}
 			continue
 		}
 
 		if ev.StartTime.After(now) {
-			// Priorizar el siguiente evento más próximo en el tiempo
 			if next == nil || ev.StartTime.Before(next.StartTime) {
-				next = ev
+				copied := ev
+				next = &copied
 			}
 		}
 	}

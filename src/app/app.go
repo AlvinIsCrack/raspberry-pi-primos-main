@@ -32,17 +32,21 @@ func New(cfg *config.AppConfig, webAssets fs.FS, webAssetsDir string) (*App, err
 	}
 
 	deviceRepository := memory.NewInMemoryDeviceRepository(roomIDs...)
-	scheduleRepo := memory.NewInMemoryScheduleRepository()
 	slog.Info("in-memory repository initialized", "rooms_count", len(roomIDs))
 
 	lockService := services.NewRoomsLockService(deviceRepository)
-	scheduleService, err := services.NewRoomsScheduleService(scheduleRepo)
+
+	// Inicialización de Schedule
+	scheduleRepository := memory.NewInMemoryScheduleRepository()
+	scheduleService, err := services.NewRoomsScheduleService(scheduleRepository, scheduleRepository)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize schedule service: %w", err)
+		return nil, fmt.Errorf("schedule service initialization failed: %w", err)
 	}
+	slog.Info("schedule service initialized")
 
 	endpoints := api.BuildEndpoints(api.AppServices{
-		RoomsLock: lockService,
+		RoomsLock:     lockService,
+		RoomsSchedule: scheduleService,
 	})
 	slog.Info("api endpoints and controllers created")
 
