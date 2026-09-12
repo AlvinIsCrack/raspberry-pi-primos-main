@@ -1,10 +1,12 @@
 {
-	"name": "web",
+	"name": "frontend",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
+		"clean": "rimraf ../src/web/static",
+		"prebuild": "pnpm run clean",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
