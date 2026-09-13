@@ -50,8 +50,7 @@ func Load() (*AppConfig, error) {
 
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Config: warning loading timezone '%s': %v. Falling back to UTC\n", tz, err)
-		loc = time.UTC
+		return nil, fmt.Errorf("invalid timezone %q: %w", tz, err)
 	}
 	// Sincroniza el runtime de Go a la ubicación configurada
 	time.Local = loc
@@ -59,7 +58,7 @@ func Load() (*AppConfig, error) {
 	// Parsear y validar las salas configuradas
 	rooms, err := parseRooms(roomsRaw)
 	if err != nil {
-		return nil, fmt.Errorf("invalid rooms configuration: %w", err)
+		return nil, fmt.Errorf("invalid rooms configuration %q: %w", roomsRaw, err)
 	}
 
 	return &AppConfig{

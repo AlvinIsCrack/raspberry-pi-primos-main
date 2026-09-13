@@ -48,13 +48,37 @@ func setupLogger(env string) {
 }
 
 func main() {
+	// Inicializar logger inmediatamente para capturar errores de booteo/configuración
+	earlyEnv := os.Getenv("APP_ENV")
+	if earlyEnv == "" {
+		earlyEnv = "development"
+	}
+	setupLogger(earlyEnv)
+
+	// Cargar configuración ya con el logger configurado
 	cfg, err := config.Load()
 	if err != nil {
-		slog.Error("fatal configuration error", "error", err)
+		slog.Error("fatal configuration error",
+			"error", err,
+			"raw_rooms", os.Getenv("APP_ROOMS"),
+			"raw_timezone", os.Getenv("APP_TIMEZONE"),
+			"app_env", earlyEnv,
+		)
 		os.Exit(1)
 	}
-	setupLogger(cfg.AppEnv)
+
+	// Reajustar logger si el config cambió el entorno
+	if !strings.EqualFold(earlyEnv, cfg.AppEnv) {
+		setupLogger(cfg.AppEnv)
+	}
+
 	cfg.LogLoaded()
+	slog.Info("booting system",
+		"os", runtime.GOOS,
+		"arch", runtime.GOARCH,
+		"go_version", runtime.Version(),
+		"pid", os.Getpid(),
+	)
 
 	slog.Info("booting system",
 		"os", runtime.GOOS,
