@@ -51,11 +51,26 @@ func main() {
 	// Inicializar logger inmediatamente para capturar errores de booteo/configuración
 	earlyEnv := os.Getenv("APP_ENV")
 	if earlyEnv == "" {
-		earlyEnv = "development"
+		earlyEnv = config.DefaultAppEnv
 	}
 	setupLogger(earlyEnv)
 
+	// Log de proceso
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "unknown"
+	}
+	slog.Debug("process started",
+		"pid", os.Getpid(),
+		"os", runtime.GOOS,
+		"arch", runtime.GOARCH,
+		"go_version", runtime.Version(),
+		"cpus", runtime.NumCPU(),
+		"cwd", cwd,
+	)
+
 	// Cargar configuración ya con el logger configurado
+	slog.Debug("loading configuration", "app_env", earlyEnv)
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("fatal configuration error",
@@ -67,44 +82,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Reajustar logger si el config cambió el entorno
+	// Reajustar logger si la configuración final especifica un entorno distinto
 	if !strings.EqualFold(earlyEnv, cfg.AppEnv) {
 		setupLogger(cfg.AppEnv)
 	}
 
 	cfg.LogLoaded()
-	slog.Info("booting system",
-		"os", runtime.GOOS,
-		"arch", runtime.GOARCH,
-		"go_version", runtime.Version(),
-		"pid", os.Getpid(),
-	)
 
-	slog.Info("booting system",
-		"os", runtime.GOOS,
-		"arch", runtime.GOARCH,
-		"go_version", runtime.Version(),
-		"pid", os.Getpid(),
-	)
-
-	// Inicializar la aplicación centralizada
+	// Inicialización del contenedor de la aplicación
+	slog.Info("initializing application components")
 	application, err := app.New(cfg, embeddedWebAssets, webAssetsDir)
 	if err != nil {
 		slog.Error("application failed to initialize", "error", err)
 		os.Exit(1)
 	}
+
+	// Inicio de runners
 	if err := application.Start(); err != nil {
 		slog.Error("application failed to start", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("system is up and running")
 
-	// Esperar señal de apagado
+	// Espera de señal de apagado
 	shutdownSig := make(chan os.Signal, 1)
 	signal.Notify(shutdownSig, os.Interrupt, syscall.SIGTERM)
 	sig := <-shutdownSig
 	slog.Info("shutdown signal received", "signal", sig.String())
 
-	// Apagado grácil
+	// Apagado ordenado (graceful shutdown)
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := application.Shutdown(ctx); err != nil {
