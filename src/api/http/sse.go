@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 )
@@ -59,13 +60,17 @@ func (h *SSEHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	h.mu.Lock()
 	h.clients[msgChan] = struct{}{}
+	clientCount := len(h.clients)
 	h.mu.Unlock()
+	slog.Info("sse client connected", "remote_addr", r.RemoteAddr, "active_clients", clientCount) // <-- Añadir
 
 	defer func() {
 		h.mu.Lock()
 		delete(h.clients, msgChan)
 		close(msgChan)
+		remaining := len(h.clients)
 		h.mu.Unlock()
+		slog.Info("sse client disconnected", "remote_addr", r.RemoteAddr, "active_clients", remaining) // <-- Añadir
 	}()
 
 	notify := r.Context().Done()

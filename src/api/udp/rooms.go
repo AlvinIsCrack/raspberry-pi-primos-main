@@ -50,6 +50,7 @@ func (c *RoomsUDPController) Start(addr string) error {
 	}
 	c.conn = conn
 
+	slog.Info("udp controller listening", "addr", conn.LocalAddr().String())
 	go c.listenLoop()
 	return nil
 }
@@ -74,6 +75,11 @@ func (c *RoomsUDPController) listenLoop() {
 		}
 
 		if n < 5 || buf[0] != 0x5A { // Magic byte 0x5A
+			slog.Debug("UDP packet dropped: invalid magic byte or length",
+				"remote_addr", remoteAddr.String(),
+				"len", n,
+				"raw", buf[:n],
+			)
 			continue
 		}
 

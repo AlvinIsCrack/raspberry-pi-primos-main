@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -24,6 +25,7 @@ func setupSPAFallback(mux *http.ServeMux, assets fs.FS, assetsDir string) error 
 
 		stat, err := fs.Stat(buildSubtree, path)
 		if errors.Is(err, fs.ErrNotExist) || (err == nil && stat.IsDir()) {
+			slog.Debug("spa fallback route served", "original_path", r.URL.Path)
 			r.URL.Path = "/"
 		}
 		fileServer.ServeHTTP(w, r)

@@ -23,6 +23,8 @@ func (r *HTTPServerRunner) Start() error {
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", r.addr, err)
 	}
+	slog.Info("http server listening", "addr", ln.Addr().String())
+
 	go func() {
 		if err := r.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("http server stopped unexpectedly", "error", err, "addr", r.addr)

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	apiHttp "primos/api/http"
 	apiUdp "primos/api/udp"
 	"primos/services"
@@ -28,6 +29,11 @@ func BuildEndpoints(svcs AppServices) Endpoints {
 	)
 
 	udpCtrl := apiUdp.NewRoomsUDPController(svcs.RoomsLock, sseHub)
+
+	slog.Debug("api endpoints initialized",
+		"http_handlers_count", len(router.httpRoutes),
+		"udp_controller_ready", udpCtrl != nil,
+	)
 
 	return Endpoints{
 		Router:        router,

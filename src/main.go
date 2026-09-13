@@ -6,8 +6,11 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
+
+	"github.com/lmittmann/tint"
 
 	"primos/app"
 	"primos/config"
@@ -24,7 +27,15 @@ const (
 )
 
 func init() {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	w := os.Stdout
+
+	slog.SetDefault(slog.New(
+		tint.NewHandler(w, &tint.Options{
+			Level:      slog.LevelDebug,
+			TimeFormat: time.Kitchen,
+			NoColor:    false,
+		}),
+	))
 }
 
 func main() {
@@ -33,6 +44,13 @@ func main() {
 		slog.Error("fatal configuration error", "error", err)
 		os.Exit(1)
 	}
+
+	slog.Info("booting system",
+		"os", runtime.GOOS,
+		"arch", runtime.GOARCH,
+		"go_version", runtime.Version(),
+		"pid", os.Getpid(),
+	)
 
 	// Inicializar la aplicación centralizada
 	application, err := app.New(cfg, embeddedWebAssets, webAssetsDir)

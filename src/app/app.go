@@ -12,6 +12,8 @@ import (
 	"primos/api"
 	"primos/config"
 	"primos/services"
+	"primos/system"
+	"primos/usm"
 )
 
 type App struct {
@@ -59,6 +61,26 @@ func (a *App) Start() error {
 		}
 		slog.Info("component started", "name", r.Name())
 	}
+
+	// Verificar conectividad a internet en segundo plano para no demorar el arranque
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		if system.HasInternetAccess(ctx) {
+			slog.Info("network connectivity verified", "internet", true)
+			return
+		}
+		slog.Warn("network probe failed: no internet access detected", "internet", false)
+	}()
+
+	sched := usm.GetCurrentAcademicSchedule(time.Now())
+	slog.Info("academic schedule evaluated",
+		"period_kind", sched.Kind,
+		"block", fmt.Sprintf("%d-%d", sched.Block.FirstIndex, sched.Block.SecondIndex),
+		"sub_block", sched.ActiveSubBlock,
+	)
+
 	return nil
 }
 

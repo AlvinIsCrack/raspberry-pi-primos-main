@@ -63,13 +63,21 @@ func (s *RoomsLockService) ReportTelemetry(ctx context.Context, roomID domain.Ro
 		return err
 	}
 
+	if device.LastReport.Door != report.Door {
+		slog.Info("door state transition",
+			"room_id", roomID,
+			"previous", device.LastReport.Door,
+			"current", report.Door,
+		)
+	}
+
 	device.ApplyTelemetry(report, time.Now())
 
 	if err := s.repo.Update(ctx, device); err != nil {
 		return fmt.Errorf("falló persistencia de telemetría: %w", err)
 	}
 
-	slog.Info("telemetry updated",
+	slog.Debug("telemetry updated",
 		"room_id", roomID,
 		"door", report.Door,
 		"battery", report.BatteryLevel,
