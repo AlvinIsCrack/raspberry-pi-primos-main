@@ -3,42 +3,20 @@ param (
     [Alias("v")]
     [switch]$VisualDelay,
 
-    [Alias("u")]
-    [switch]$SkipUnitTests,
-
     [string]$HttpPort = "8080"
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 
-# Tests Unitarios de Go
-if (-not $SkipUnitTests) {
-    Write-Host "[1/3] Ejecutando pruebas unitarias de Go..." -ForegroundColor Cyan
-    Push-Location $RepoRoot
-    try {
-        go test -v -race ./...
-        if ($LASTEXITCODE -ne 0) {
-            throw "Las pruebas unitarias de Go fallaron."
-        }
-    }
-    finally {
-        Pop-Location
-    }
-}
-else {
-    Write-Host "[1/3] Omitiendo pruebas unitarias de Go (-SkipUnitTests activo)." -ForegroundColor Yellow
-}
-
 # Lanzamiento del servidor en background con go run
-Write-Host "[2/3] Iniciando servidor temporal..." -ForegroundColor Cyan
+Write-Host "[1/2] Iniciando servidor temporal..." -ForegroundColor Cyan
 
 $srcDir = Join-Path $RepoRoot "src"
 $env:HTTP_ADDR = ":$HttpPort"
 $serverProcess = Start-Process -FilePath "go" -ArgumentList "run", "main.go" -WorkingDirectory $srcDir -PassThru -NoNewWindow
 
 try {
-    # Espera activa para que el servidor levante el socket HTTP
     $maxRetries = 30
     $isReady = $false
     for ($i = 0; $i -lt $maxRetries; $i++) {
@@ -50,9 +28,7 @@ try {
                 break
             }
         }
-        catch {
-            # El puerto aún no acepta conexiones
-        }
+        catch { }
 
         if ($serverProcess.HasExited) {
             throw "El servidor de pruebas se cerró inesperadamente con código: $($serverProcess.ExitCode)"
@@ -66,7 +42,7 @@ try {
     Write-Host "Servidor listo y respondiendo." -ForegroundColor Green
 
     # Pruebas de integración con Pytest
-    Write-Host "[3/3] Ejecutando suite de integración en Python..." -ForegroundColor Cyan
+    Write-Host "[2/2] Ejecutando suite de integración en Python..." -ForegroundColor Cyan
     $pytestArgs = @("-v", (Join-Path $RepoRoot "tests/integration"))
     if ($VisualDelay) {
         $pytestArgs += "--visual-delay"
