@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -26,13 +27,12 @@ const (
 	provisionTimeout = 5 * time.Minute
 )
 
-func init() {
+func setupLogger(env string) {
 	w := os.Stdout
-
-	isProd := os.Getenv("APP_ENV") == "production"
-
 	timeFormat := "2006-01-02 15:04:05.000"
 	logLevel := slog.LevelDebug
+	isProd := strings.EqualFold(env, "production")
+
 	if isProd {
 		timeFormat = time.RFC3339
 		logLevel = slog.LevelInfo
@@ -53,6 +53,8 @@ func main() {
 		slog.Error("fatal configuration error", "error", err)
 		os.Exit(1)
 	}
+	setupLogger(cfg.AppEnv)
+	cfg.LogLoaded()
 
 	slog.Info("booting system",
 		"os", runtime.GOOS,

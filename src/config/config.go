@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"primos/domain"
@@ -13,7 +14,8 @@ const (
 	DefaultTimezone = "America/Santiago"
 	DefaultHTTPAddr = ":8080"
 	DefaultUDPAddr  = ":1884"
-	DefaultRooms    = "LPA,OFI"
+	DefaultRooms    = "1,2,3,4,5"
+	DefaultAppEnv   = "development"
 )
 
 // AppConfig almacena los ajustes globales de la aplicación.
@@ -23,6 +25,7 @@ type AppConfig struct {
 	UDPAddr  string
 	Location *time.Location
 	Rooms    []domain.RoomID
+	AppEnv   string
 }
 
 // LogLoaded inspecciona y registra todos los campos de AppConfig de manera dinámica.
@@ -33,6 +36,7 @@ func (c *AppConfig) LogLoaded() {
 		"udp_addr", c.UDPAddr,
 		"location", c.Location.String(),
 		"rooms", c.Rooms,
+		"app_env", c.AppEnv,
 	)
 }
 
@@ -42,6 +46,7 @@ func Load() (*AppConfig, error) {
 	httpAddr := getEnv("HTTP_ADDR", DefaultHTTPAddr)
 	udpAddr := getEnv("UDP_ADDR", DefaultUDPAddr)
 	roomsRaw := getEnv("APP_ROOMS", DefaultRooms)
+	appEnv := getEnv("APP_ENV", DefaultAppEnv)
 
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
@@ -57,16 +62,18 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid rooms configuration: %w", err)
 	}
 
-	cfg := &AppConfig{
+	return &AppConfig{
 		Timezone: tz,
 		HTTPAddr: httpAddr,
 		UDPAddr:  udpAddr,
 		Location: loc,
 		Rooms:    rooms,
-	}
-	cfg.LogLoaded()
+		AppEnv:   appEnv,
+	}, nil
+}
 
-	return cfg, nil
+func (c *AppConfig) IsProduction() bool {
+	return strings.EqualFold(c.AppEnv, "production")
 }
 
 func getEnv(key, fallback string) string {
