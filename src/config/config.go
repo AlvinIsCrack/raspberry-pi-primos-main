@@ -14,7 +14,7 @@ const (
 	DefaultTimezone = "America/Santiago"
 	DefaultHTTPAddr = ":8080"
 	DefaultUDPAddr  = ":1884"
-	DefaultRooms    = "1,2,3,4,5"
+	DefaultRooms    = "LPA,OFI"
 	DefaultAppEnv   = "development"
 )
 
