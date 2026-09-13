@@ -13,5 +13,8 @@ RestartSec=3
 StandardOutput=journal
 StandardError=journal
 
+Environment="APP_ENV=production"
+EnvironmentFile=-/etc/default/primos-dashboard
+
 [Install]
 WantedBy=multi-user.target
