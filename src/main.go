@@ -29,11 +29,20 @@ const (
 func init() {
 	w := os.Stdout
 
+	isProd := os.Getenv("APP_ENV") == "production"
+
+	timeFormat := "2006-01-02 15:04:05.000"
+	logLevel := slog.LevelDebug
+	if isProd {
+		timeFormat = time.RFC3339
+		logLevel = slog.LevelInfo
+	}
+
 	slog.SetDefault(slog.New(
 		tint.NewHandler(w, &tint.Options{
-			Level:      slog.LevelDebug,
-			TimeFormat: time.Kitchen,
-			NoColor:    false,
+			Level:      logLevel,
+			TimeFormat: timeFormat,
+			NoColor:    isProd,
 		}),
 	))
 }
