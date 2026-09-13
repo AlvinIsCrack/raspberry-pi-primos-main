@@ -4,17 +4,20 @@ param (
     [switch]$Build,
 
     [Alias("s")]
-    [switch]$Setup
+    [switch]$Setup,
+
+    [string]$TargetIP = "192.168.1.11",
+    [string]$TargetUser = "dietpi",
+    [string]$HttpPort = "8080",
+    [string]$UdpPort = "1884"
 )
 
 $ErrorActionPreference = "Stop"
-
-$IP = "192.168.1.11"
-$USER = "dietpi"
+$RepoRoot = Split-Path -Parent $PSScriptRoot
 
 if ($Build) {
     Write-Host "Construyendo assets web con pnpm..." -ForegroundColor Cyan
-    Push-Location src/web
+    Push-Location (Join-Path $RepoRoot "frontend")
     try {
         pnpm run build
         if ($LASTEXITCODE -ne 0) {
@@ -27,8 +30,16 @@ if ($Build) {
 }
 
 if ($Setup) {
+    foreach ($file in @($tmplDash, $tmplKiosk)) {
+        if (-not (Test-Path $file)) {
+            throw "Deployment template missing: $file"
+        }
+    }
+
     Write-Host "Configurando unidades systemd remotas..." -ForegroundColor Cyan
-    scp template.dashboard.service template.kiosk.service "$($USER)@$($IP):/tmp/"
+    $tmplDash = Join-Path $RepoRoot "template.dashboard.service"
+    $tmplKiosk = Join-Path $RepoRoot "template.kiosk.service"
+    scp $tmplDash $tmplKiosk "$($TargetUser)@$($TargetIP):/tmp/"
     if ($LASTEXITCODE -ne 0) {
         throw "Fallo al copiar los archivos de servicio mediante SCP."
     }
@@ -40,7 +51,7 @@ if ($Setup) {
     "sudo systemctl daemon-reload; " +
     "sudo systemctl enable --now dashboard.service kiosk.service"
     
-    ssh "$($USER)@$($IP)" $setupScript
+    ssh "$($TargetUser)@$($TargetIP)" $setupScript
     if ($LASTEXITCODE -ne 0) {
         throw "Fallo en la configuración remota de systemd."
     }
@@ -53,18 +64,17 @@ $prevGOOS = $env:GOOS
 $prevGOARCH = $env:GOARCH
 $prevGOARM = $env:GOARM
 
-Push-Location src
+Push-Location (Join-Path $RepoRoot "src")
 try {
     $env:GOOS = "linux"
     $env:GOARCH = "arm"
     $env:GOARM = "6"
 
-    # Asegura que exista el directorio de salida si no está creado
-    if (-not (Test-Path "../build")) {
-        New-Item -ItemType Directory -Path "../build" | Out-Null
+    $outDir = Join-Path $RepoRoot "build"
+    if (-not (Test-Path $outDir)) {
+        New-Item -ItemType Directory -Path $outDir | Out-Null
     }
-
-    go build -ldflags="-s -w" -o ../build/dashboard .
+    go build -ldflags="-s -w" -o (Join-Path $outDir "dashboard") .
     $buildSuccess = ($LASTEXITCODE -eq 0)
 }
 finally {
@@ -76,9 +86,8 @@ finally {
 
 if ($buildSuccess) {
     Write-Host "Transfiriendo binario..." -ForegroundColor Cyan
-    $binaryPath = (Resolve-Path "build/dashboard").Path
-
-    scp $binaryPath "$($USER)@$($IP):/home/$($USER)/dashboard.new"
+    $binaryPath = Join-Path $RepoRoot "build/dashboard"
+    scp $binaryPath "$($TargetUser)@$($TargetIP):/home/$($TargetUser)/dashboard.new"
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Fallo al transferir el binario mediante scp." -ForegroundColor Red
         exit 1
@@ -86,13 +95,13 @@ if ($buildSuccess) {
 
     $remoteScript = "set -e; " +
     "sudo systemctl stop dashboard.service kiosk.service 2>/dev/null || true; " +
-    "sudo fuser -k 8080/tcp 1883/tcp >/dev/null 2>&1 || true; " +
-    "chmod +x /home/$USER/dashboard.new; " +
-    "mv -f /home/$USER/dashboard.new /home/$USER/dashboard; " +
+    "sudo fuser -k $($HttpPort)/tcp $($UdpPort)/udp >/dev/null 2>&1 || true; " +
+    "chmod +x `"/home/$TargetUser/dashboard.new`"; " +
+    "mv -f `"/home/$TargetUser/dashboard.new`" `"/home/$TargetUser/dashboard`"; " +
     "sudo systemctl start dashboard.service kiosk.service"
 
     Write-Host "Reiniciando servicios remotos..." -ForegroundColor Cyan
-    ssh "$($USER)@$($IP)" $remoteScript
+    ssh "$($TargetUser)@$($TargetIP)" $remoteScript
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Despliegue completado exitosamente." -ForegroundColor Green
