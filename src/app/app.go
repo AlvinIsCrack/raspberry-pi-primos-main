@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"primos/api"
@@ -16,7 +18,15 @@ import (
 	"primos/usm"
 )
 
+const appBanner = `
+  ____  ____  ___ __  __  ___  ____ 
+ |  _ \|  _ \|_ _|  \/  |/ _ \/ ___|
+ | |_) | |_) || || |\/| | | | \___ \
+ |  __/|  _ < | || |  | | |_| |___) |
+ |_|   |_| \_\___|_|  |_|\___/|____/`
+
 type App struct {
+	cfg     *config.AppConfig
 	runners []ServiceRunner
 }
 
@@ -45,7 +55,10 @@ func New(cfg *config.AppConfig, webAssets fs.FS, webAssetsDir string) (*App, err
 		&HTTPServerRunner{server: &http.Server{Addr: cfg.HTTPAddr, Handler: httpMux}, addr: cfg.HTTPAddr},
 	}
 
-	return &App{runners: runners}, nil
+	return &App{
+		cfg:     cfg,
+		runners: runners,
+	}, nil
 }
 
 func (a *App) Start() error {
@@ -81,6 +94,9 @@ func (a *App) Start() error {
 		"sub_block", sched.ActiveSubBlock,
 	)
 
+	if !a.cfg.IsProduction() {
+		printBanner(a.cfg)
+	}
 	return nil
 }
 
@@ -100,4 +116,23 @@ func (a *App) Shutdown(ctx context.Context) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func printBanner(cfg *config.AppConfig) {
+	fmt.Printf("%s\n\n  -> HTTP: %s\n  -> UDP:  %s\n  -> Env:  %s\n\n",
+		appBanner, resolveDisplayURL(cfg.HTTPAddr), cfg.UDPAddr, cfg.AppEnv)
+}
+
+func resolveDisplayURL(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		if !strings.Contains(addr, ":") {
+			return fmt.Sprintf("http://localhost:%s", addr)
+		}
+		return "http://localhost" + addr
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
+		host = "localhost"
+	}
+	return fmt.Sprintf("http://%s:%s", host, port)
 }
